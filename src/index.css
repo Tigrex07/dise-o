@@ -1,0 +1,9 @@
+/* Reemplaza las 3 directivas @tailwind por una sola línea @import */
+@import "tailwindcss";
+
+@layer base {
+  body {
+    /* Ahora @apply funciona dentro de @layer base */
+    @apply bg-gray-100 text-gray-800;
+  }
+}
