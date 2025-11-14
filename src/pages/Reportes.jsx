@@ -38,7 +38,7 @@ export default function Reportes() {
         <ReportCard 
             icon={<Settings size={24} />}
             title="Administración de Catálogos"
-            description="Gestiona prioridades, tipos de trabajo y el listado de máquinas."
+            description="Gestiona listas maestras: tipos de trabajo, prioridades, máquinas y usuarios. (Catálogo usado por formularios y filtros.)"
             buttonText="Administrar"
             onClick={() => alert("Función: Ir a la gestión de catálogos")}
         />
