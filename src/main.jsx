@@ -3,18 +3,19 @@ import { createRoot } from 'react-dom/client';
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 
 // 1. Importa el Layout y las Vistas
-import MainLayout from './MainLayout.jsx'; 
-import Dashboard from './pages/Dashboard.jsx'; 
+import MainLayout from './MainLayout.jsx';
+import Dashboard from './pages/Dashboard.jsx';
 import SolicitudForm from './pages/SolicitudForm.jsx';
 import TrabajoDetail from './pages/TrabajoDetail.jsx';
 import CalidadReview from './pages/CalidadReview.jsx';
 import MisAsignaciones from './pages/MisAsignaciones.jsx';
 import Reportes from './pages/Reportes.jsx';
 import Usuarios from './pages/Usuarios.jsx';
+import Login from './pages/Login.jsx';
 import Configuracion from './pages/Configuracion.jsx';
 
 // 2. Importa el CSS global
-import './index.css'; 
+import './index.css';
 
 // 3. Define las rutas de la aplicación
 const router = createBrowserRouter([
@@ -23,41 +24,40 @@ const router = createBrowserRouter([
     element: <MainLayout />, // Componente que provee la Sidebar
     children: [
       {
-        path: "/",
+        index: true,
         element: <Dashboard />, // La vista principal
       },
       {
+        path: "login",
+        element: <Login />, // Mock visual de login
+      },
+      {
         path: "solicitar",
-        element: <SolicitudForm />, // Formulario de Producción
+        element: <SolicitudForm />, // Formulario de Producción / Orden
+      },
+      {
+        path: "trabajo/mis-asignaciones", // RUTA ESTÁTICA — debe ir antes de la dinámica
+        element: <MisAsignaciones />,
       },
       {
         path: "trabajo/:id",
-        element: <TrabajoDetail />, // Revisión y Trabajo
+        element: <TrabajoDetail />, // Revisión y Trabajo (detalle)
       },
       {
         path: "revision-calidad/:id",
         element: <CalidadReview />, // Revisión de Calidad
       },
-      // Puedes añadir más rutas aquí
       {
-        path: "trabajo/mis-asignaciones", //  RUTA EXACTA DEL ENLACE DE SIDEBAR
-        element: <MisAsignaciones />, //  NUEVO COMPONENTE
+        path: "reportes",
+        element: <Reportes />,
       },
       {
-        path: "trabajo/:id", // Esta ruta sigue siendo para el detalle
-        element: <TrabajoDetail />,
+        path: "usuarios",
+        element: <Usuarios />,
       },
       {
-        path: "reportes", // 👈 Coincide con el 'to' del MainLayout
-        element: <Reportes />, 
-      },
-      {
-        path: "usuarios", // 👈 Coincide con el 'to' del MainLayout
-        element: <Usuarios />, 
-      },
-      {
-        path: "configuracion", // 👈 Coincide con el 'to' del MainLayout
-        element: <Configuracion />, 
+        path: "configuracion",
+        element: <Configuracion />,
       },
     ],
   },

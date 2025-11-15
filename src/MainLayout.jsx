@@ -46,7 +46,14 @@ export default function MainLayout() {
                         label="Mi Trabajo (Maquinista)" 
                         to="/trabajo/mis-asignaciones" 
                         currentPath={location.pathname} 
+                        
                     />
+                    <SidebarItem
+  icon={<AlertTriangle size={18} />}
+  label="Login Demo"
+  to="/login"
+  currentPath={location.pathname}
+/>
                     <div className="pt-4 mt-4 border-t border-gray-700">
                       <SidebarItem icon={<AlertTriangle size={18} />} label="Reportes" to="/reportes" currentPath={location.pathname} />
                       <SidebarItem icon={<Users size={18} />} label="Usuarios" to="/usuarios" currentPath={location.pathname} />
