@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Wrench, User, Clock, CheckCircle, XCircle } from 'lucide-react';
+import ArchivosSolicitud from "../components/ArchivosSolicitud";
+
+
 
 export default function TrabajoDetail() {
     // Obtener el ID de la solicitud desde la URL (Ej: /trabajo/001)
@@ -57,6 +60,8 @@ export default function TrabajoDetail() {
             <div className="mt-6 bg-white p-6 rounded-xl shadow-lg">
                 <h2 className="text-xl font-semibold mb-4 border-b pb-2">Detalles del Reporte</h2>
                 <p className="text-gray-700 mb-4">{solicitud.detalles}</p>
+                <ArchivosSolicitud solicitudId={solicitud.id} userRol={"TI"} />
+
 
                 {/* --- Panel de Asignación (Rol: Machine Shop) --- */}
                 {solicitud.estado === 'Nueva' && isMachineShop && (

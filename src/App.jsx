@@ -1,7 +1,7 @@
 import React from "react";
 // Importaciones de iconos de Lucide
 import { PlusCircle, Edit, Trash2, AlertTriangle, Settings, Home, Users } from "lucide-react";
-
+import NotificacionesPanel from "./components/NotificacionesPanel";
 // --- COMPONENTE PRINCIPAL ---
 export default function App() {
   return (
@@ -24,7 +24,10 @@ export default function App() {
 
       {/* Main content */}
       <main className="flex-1 p-6 overflow-y-auto">
-        <h1 className="text-2xl font-bold mb-6">Gestión de Reportes de Piezas Dañadas</h1>
+        <div className="flex items-center justify-between mb-6">
+  <h1 className="text-2xl font-bold text-slate-700">Gestión de Reportes de Piezas Dañadas</h1>
+  <NotificacionesPanel />
+</div>
 
         {/* Botones de acción */}
         <div className="flex items-center justify-between mb-4">
