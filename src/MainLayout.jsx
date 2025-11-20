@@ -1,7 +1,9 @@
 import React from 'react';
 import { Outlet, useLocation, Link } from 'react-router-dom';
-import { Home, AlertTriangle, Settings, Users, Factory, Tally5 } from "lucide-react";
+import { Home, AlertTriangle, Settings, Users, Factory, Tally5, UserCheck } from "lucide-react";
 import NotificacionesPanel from './components/NotificacionesPanel'; // Asegúrate de que la ruta sea correcta
+import { Archive, History, PackageCheck } from 'lucide-react';
+
 
 function SidebarItem({ icon, label, to, currentPath }) {
   const active = currentPath === to;
@@ -31,12 +33,27 @@ export default function MainLayout() {
         <nav className="flex-1 p-4 space-y-2">
           <SidebarItem icon={<Home size={18} />} label="Dashboard" to="/" currentPath={location.pathname} />
           <SidebarItem icon={<Factory size={18} />} label="Nueva Solicitud" to="/solicitar" currentPath={location.pathname} />
+          <SidebarItem
+  icon={<UserCheck size={18} />}
+  label="Revisión"
+  to="/revision"
+  currentPath={location.pathname}
+/>
+
+<SidebarItem
+  icon={<Archive size={18} />}
+  label="Historial"
+  to="/historial"
+  currentPath={location.pathname}
+/>
+
           <SidebarItem icon={<Tally5 size={18} />} label="Mi Trabajo (Maquinista)" to="/trabajo/mis-asignaciones" currentPath={location.pathname} />
           <SidebarItem icon={<AlertTriangle size={18} />} label="Login Demo" to="/login" currentPath={location.pathname} />
           <div className="pt-4 mt-4 border-t border-gray-700">
             <SidebarItem icon={<AlertTriangle size={18} />} label="Reportes" to="/reportes" currentPath={location.pathname} />
             <SidebarItem icon={<Users size={18} />} label="Usuarios" to="/usuarios" currentPath={location.pathname} />
             <SidebarItem icon={<Settings size={18} />} label="Configuración" to="/configuracion" currentPath={location.pathname} />
+
           </div>
         </nav>
         <div className="p-4 text-center text-sm text-gray-400 border-t border-gray-700">

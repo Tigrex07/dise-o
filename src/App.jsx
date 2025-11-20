@@ -1,179 +1,141 @@
-import React from "react";
+import React, { useState, useMemo } from "react";
+// Importamos los componentes de página y el Sidebar
+import Dashboard from "./Dashboard";
+import SolicitudForm from "./SolicitudForm";
+import Usuarios from "./Usuarios";
+import Revision from "./Revision";
+import Sidebar from "./Sidebar";
+
 // Importaciones de iconos de Lucide
-import { PlusCircle, Edit, Trash2, AlertTriangle, Settings, Home, Users } from "lucide-react";
-import NotificacionesPanel from "./components/NotificacionesPanel";
+import { AlertTriangle, PlusCircle, CheckCircle, FileText } from "lucide-react";
+
+// ----------------------------------------------------------------------
+// MOCK DATA GLOBAL (Simula la información que vendría de Firestore/API)
+// ----------------------------------------------------------------------
+
+// Lista Única de Usuarios/Operadores con diferentes roles
+const mockUsers = [
+    { id: 'usr-101', nombre: 'Ana López', rol: 'Ingeniero', area: 'Inyección', activo: true },
+    { id: 'usr-102', nombre: 'Luis Gámez', rol: 'Ingeniero', area: 'Mantenimiento', activo: true },
+    { id: 'usr-201', nombre: 'Juan Perez', rol: 'Operador', area: 'Machine Shop A1', activo: true },
+    { id: 'usr-202', nombre: 'Maria Gomez', rol: 'Operador', area: 'Machine Shop A2', activo: true },
+    { id: 'usr-301', nombre: 'Carlos Ruiz', rol: 'Operador', area: 'Machine Shop A1', activo: false },
+    { id: 'usr-901', nombre: 'Admin IT', rol: 'Admin IT', area: 'IT/Sistemas', activo: true },
+];
+
+let lastSolicitudId = 10;
+const generateNextId = () => {
+    lastSolicitudId += 1;
+    // Generar un ID con formato de ejemplo
+    return `2025-${String(lastSolicitudId).padStart(3, '0')}`;
+}
+
+// Actualizamos Solicitudes para usar IDs de usuario/operador
+let initialSolicitudes = [
+    { id: '2025-001', pieza: 'Molde Inyección #45', maquina: 'INJ-03', area: 'Plásticos', tipo: 'Daño físico', detalles: 'Grieta en el inserto guía.', prioridad: 'Media', estado: 'En proceso', solicitanteId: 'usr-101', fecha: '2025-10-25', asignadoAId: 'usr-201', notasIngenieria: 'Requiere soldadura y rectificado.' },
+    { id: '2025-002', pieza: 'Troquel Estampado T-8', maquina: 'EST-12', area: 'Metalurgia', tipo: 'Mejora de proceso', detalles: 'Cambio de radio en esquina de corte.', prioridad: 'Alta', estado: 'Pendiente', solicitanteId: 'usr-102', fecha: '2025-10-26', asignadoAId: null, notasIngenieria: '' },
+    { id: '2025-003', pieza: 'Eje de Engranaje', maquina: 'CNC-05', area: 'Tornos', tipo: 'Fabricación', detalles: 'Creación de 5 piezas nuevas según plano R-2025.', prioridad: 'Urgente', estado: 'Pendiente', solicitanteId: 'usr-101', fecha: '2025-10-27', asignadoAId: null, notasIngenieria: 'Entregable crítico para línea L-5.' },
+    { id: '2025-004', pieza: 'Prensa Neumática P-9', maquina: 'PN-09', area: 'Ensamble', tipo: 'Reparación de equipo', detalles: 'Reemplazo de pistón hidráulico y ajuste de presión.', prioridad: 'Baja', estado: 'Completado', solicitanteId: 'usr-102', fecha: '2025-10-28', asignadoAId: 'usr-202', notasIngenieria: 'Finalizado y validado.' },
+];
+
 // --- COMPONENTE PRINCIPAL ---
 export default function App() {
-  return (
-    <div className="flex h-screen">
-      {/* Sidebar */}
-      <aside className="w-64 bg-gray-900 text-white flex flex-col">
-        <div className="p-4 text-2xl font-bold text-center border-b border-gray-700">
-          Molds Tracker
+    // Estado para la navegación
+    const [currentPage, setCurrentPage] = useState("dashboard");
+    // Estado para los datos centrales
+    const [solicitudes, setSolicitudes] = useState(initialSolicitudes);
+    const [users, setUsers] = useState(mockUsers); // Usaremos 'users' aquí
+
+    // Lógica para guardar o actualizar una solicitud
+    const handleSaveSolicitud = (newSolicitud) => {
+        // En un entorno real, aquí se llamaría al API o Firestore
+        if (newSolicitud.isEdit) {
+            setSolicitudes(prev => prev.map(s => s.id === newSolicitud.id ? { ...s, ...newSolicitud } : s));
+        } else {
+            const id = generateNextId();
+            const solicitanteId = 'usr-101'; // Simulamos que el usuario logueado es Ana López por defecto
+            const fecha = new Date().toISOString().split('T')[0];
+
+            setSolicitudes(prev => [
+                { ...newSolicitud, id, estado: 'Pendiente', prioridad: 'Media', solicitanteId, asignadoAId: null, fecha, notasIngenieria: '' },
+                ...prev
+            ]);
+            // Después de guardar, navegamos al dashboard
+            setCurrentPage('dashboard');
+        }
+    };
+
+    // Función para obtener el título de la página
+    const getPageTitle = () => {
+        switch (currentPage) {
+            case "dashboard": return "Dashboard General y Solicitudes";
+            case "revision": return "Revisión y Asignación de Trabajos";
+            case "nueva-solicitud": return "Crear Nueva Solicitud de Taller";
+            case "gestion-usuarios": return "Administración de Usuarios del Sistema";
+            case "configuracion": return "Configuración del Sistema";
+            default: return "Molds Tracker";
+        }
+    };
+
+    // Función que renderiza el componente de contenido activo
+    const renderContent = () => {
+        switch (currentPage) {
+            case "dashboard":
+                // Pasamos solicitudes y users al Dashboard
+                return <Dashboard solicitudes={solicitudes} users={users} />;
+            case "revision":
+                // Pasar datos para la revisión (solo Ingenieros/Admin)
+                return <Revision solicitudes={solicitudes} users={users} setSolicitudes={setSolicitudes} />;
+            case "nueva-solicitud":
+                // Pasamos la función de guardado
+                return <SolicitudForm handleSubmit={handleSaveSolicitud} handleBack={() => setCurrentPage('dashboard')} />;
+            case "gestion-usuarios":
+                // Aquí iría el componente Usuarios, usando setUsers para simular la gestión
+                return <Usuarios users={users} setUsers={setUsers} />;
+            default:
+                return (
+                    <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                        <AlertTriangle size={48} className="text-yellow-500 mb-4" />
+                        <h1 className="text-xl font-semibold">Página no encontrada o en desarrollo.</h1>
+                        <p>Selecciona una opción del menú lateral.</p>
+                    </div>
+                );
+        }
+    };
+
+
+    return (
+        <div className="flex min-h-screen bg-gray-100 font-sans">
+            
+            {/* Sidebar (Ahora importado y pasa el control de navegación) */}
+            <Sidebar currentPage={currentPage} setCurrentPage={setCurrentPage} />
+
+            {/* Main content */}
+            <main className="flex-1 p-8 overflow-y-auto">
+                
+                {/* Encabezado del Contenido Principal */}
+                <div className="flex items-center justify-between mb-8 border-b pb-4">
+                    <h1 className="text-3xl font-bold text-slate-800">{getPageTitle()}</h1>
+                    
+                    {/* Botón flotante para Nueva Solicitud */}
+                    {(currentPage === 'dashboard' || currentPage === 'revision') && (
+                        <button 
+                            onClick={() => setCurrentPage('nueva-solicitud')}
+                            className="flex items-center px-4 py-2 bg-indigo-600 text-white font-semibold rounded-full shadow-lg hover:bg-indigo-700 transition duration-200 transform hover:scale-[1.02]"
+                            title="Crear un nuevo reporte"
+                        >
+                            <PlusCircle size={20} className="mr-2" />
+                            Nueva Solicitud
+                        </button>
+                    )}
+                </div>
+
+                {/* Contenido de la Página Activa */}
+                <div className="max-w-full">
+                    {renderContent()}
+                </div>
+
+            </main>
         </div>
-        <nav className="flex-1 p-4 space-y-2">
-          <SidebarItem icon={<Home size={18} />} label="Dashboard" active />
-          <SidebarItem icon={<AlertTriangle size={18} />} label="Reportes" />
-          <SidebarItem icon={<Settings size={18} />} label="Configuración" />
-          <SidebarItem icon={<Users size={18} />} label="Usuarios" />
-        </nav>
-        <div className="p-4 text-center text-sm text-gray-400 border-t border-gray-700">
-          © 2025
-        </div>
-      </aside>
-
-      {/* Main content */}
-      <main className="flex-1 p-6 overflow-y-auto">
-        <div className="flex items-center justify-between mb-6">
-  <h1 className="text-2xl font-bold text-slate-700">Gestión de Reportes de Piezas Dañadas</h1>
-  <NotificacionesPanel />
-</div>
-
-        {/* Botones de acción */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex gap-2">
-            <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2">
-              <PlusCircle size={18} /> Nuevo Reporte
-            </button>
-            <button className="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-lg">
-              Exportar
-            </button>
-          </div>
-          <input
-            type="text"
-            placeholder="Buscar..."
-            className="border border-gray-300 rounded-lg px-3 py-2"
-          />
-        </div>
-
-        {/* Tabla de reportes */}
-        <div className="bg-white rounded-xl shadow-md overflow-hidden">
-          <table className="min-w-full border-collapse">
-            <thead className="bg-gray-200">
-              <tr>
-                <Th>ID</Th>
-                <Th>Pieza</Th>
-                <Th>Área</Th>
-                <Th>Tipo</Th>
-                <Th>Prioridad</Th>
-                <Th>Estado</Th>
-                <Th>Fecha</Th>
-                <Th>Acciones</Th>
-              </tr>
-            </thead>
-            <tbody>
-              <TableRow
-                id="001"
-                pieza="Molde A1"
-                area="Producción"
-                tipo="Daño físico"
-                prioridad="Alta"
-                estado="Pendiente"
-                fecha="2025-11-03"
-              />
-              <TableRow
-                id="002"
-                pieza="Molde B5"
-                area="Mantenimiento"
-                tipo="Mal funcionamiento"
-                prioridad="Media"
-                estado="En proceso"
-                fecha="2025-11-02"
-              />
-               <TableRow
-                id="003"
-                pieza="Molde C2"
-                area="Calidad"
-                tipo="Falla de material"
-                prioridad="Baja"
-                estado="Completado"
-                fecha="2025-10-31"
-              />
-            </tbody>
-          </table>
-        </div>
-      </main>
-    </div>
-  );
-}
-
-// --- COMPONENTES AUXILIARES ---
-
-/** Componente para los items de la barra lateral */
-function SidebarItem({ icon, label, active }) {
-  return (
-    <div
-      className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition duration-150 ease-in-out ${
-        active ? "bg-blue-600 font-semibold" : "hover:bg-gray-800"
-      }`}
-    >
-      {icon}
-      <span className="text-sm">{label}</span>
-    </div>
-  );
-}
-
-/** Componente para el encabezado de la tabla (<th>) */
-function Th({ children }) {
-  return (
-    <th className="text-left px-4 py-3 text-sm font-semibold border-b border-gray-300">
-      {children}
-    </th>
-  );
-}
-
-/** Componente para una celda de la tabla (<td>) */
-function Td({ children }) {
-  return <td className="px-4 py-3 text-sm border-b border-gray-200">{children}</td>;
-}
-
-/** Componente para una fila completa de la tabla (<tr>) */
-function TableRow({ id, pieza, area, tipo, prioridad, estado, fecha }) {
-  // Función auxiliar para obtener las clases de color del estado
-  const getStatusClasses = (status) => {
-    switch (status) {
-      case "Pendiente":
-        return "bg-red-100 text-red-700 font-medium";
-      case "En proceso":
-        return "bg-yellow-100 text-yellow-700 font-medium";
-      case "Completado":
-        return "bg-green-100 text-green-700 font-medium";
-      default:
-        return "bg-gray-100 text-gray-700";
-    }
-  };
-
-  return (
-    <tr className="border-b border-gray-200 hover:bg-gray-50 transition duration-100">
-      <Td>{id}</Td>
-      <Td>{pieza}</Td>
-      <Td>{area}</Td>
-      <Td>{tipo}</Td>
-      <Td>{prioridad}</Td>
-      <Td>
-        <span
-          className={`px-3 py-1 rounded-full text-xs tracking-wider ${getStatusClasses(estado)}`}
-        >
-          {estado}
-        </span>
-      </Td>
-      <Td>{fecha}</Td>
-      <Td>
-        <div className="flex gap-2">
-          <button
-            title="Editar reporte"
-            className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50 transition"
-          >
-            <Edit size={18} />
-          </button>
-          <button
-            title="Eliminar reporte"
-            className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50 transition"
-          >
-            <Trash2 size={18} />
-          </button>
-        </div>
-      </Td>
-    </tr>
-  );
+    );
 }

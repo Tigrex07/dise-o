@@ -13,6 +13,10 @@ import Reportes from './pages/Reportes.jsx';
 import Usuarios from './pages/Usuarios.jsx';
 import Login from './pages/Login.jsx';
 import Configuracion from './pages/Configuracion.jsx';
+import Revision from './pages/Revision.jsx';
+import Historial from './pages/historial';
+
+
 
 // 2. Importa el CSS global
 import './index.css';
@@ -59,6 +63,8 @@ const router = createBrowserRouter([
         path: "configuracion",
         element: <Configuracion />,
       },
+      { path: "revision", element: <Revision /> },
+      { path: 'historial', element: <Historial /> }
     ],
   },
 ]);

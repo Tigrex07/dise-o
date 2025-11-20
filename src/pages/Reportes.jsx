@@ -35,13 +35,7 @@ export default function Reportes() {
         />
 
         {/* Tarjeta 3: Configuración y Catálogos */}
-        <ReportCard 
-            icon={<Settings size={24} />}
-            title="Administración de Catálogos"
-            description="Gestiona listas maestras: tipos de trabajo, prioridades, máquinas y usuarios. (Catálogo usado por formularios y filtros.)"
-            buttonText="Administrar"
-            onClick={() => alert("Función: Ir a la gestión de catálogos")}
-        />
+        
 
       </div>
     </>

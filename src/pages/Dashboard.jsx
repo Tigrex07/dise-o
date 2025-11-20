@@ -63,6 +63,16 @@ export default function Dashboard() {
   const [personFilter, setPersonFilter] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
+  const kpis = useMemo(() => {
+  const total = reports.length;
+  const enProceso = reports.filter(r => r.estado === "En progreso").length;
+  const pendiente = reports.filter(r => r.estado === "Nueva" || r.estado === "Asignada").length;
+  const avgDays = total > 0
+    ? (reports.reduce((acc, r) => acc + (parseInt(r.diasAbierto || "0")), 0) / total).toFixed(1)
+    : 0;
+
+  return { total, enProceso, pendiente, avgDays };
+}, [reports]);
 
   const handleNewReport = () => {
     navigate("/solicitar");
@@ -71,7 +81,7 @@ export default function Dashboard() {
   useEffect(() => {
     // Simulación de carga
     setTimeout(() => {
-      setReports(MOCK_REPORTS);
+      setReports(MOCK_REPORTS.filter(r => r.estado !== "Completado"));
       setIsLoading(false);
     }, 600);
   }, []);
@@ -157,11 +167,19 @@ export default function Dashboard() {
           </select>
         </div>
       </div>
+{/* --- KPIs --- */}
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+  <Kpi title="Total Órdenes" value={kpis.total} color="indigo" />
+  <Kpi title="En Proceso" value={kpis.enProceso} color="blue" />
+  <Kpi title="Pendientes" value={kpis.pendiente} color="red" />
+  <Kpi title="Días Promedio" value={kpis.avgDays} color="green" />
+</div>
 
       {/* Tabla de reportes */}
       <div className="bg-white rounded-xl shadow-md overflow-hidden">
         <table className="min-w-full border-collapse">
           <thead className="bg-gray-200">
+            
             <tr>
               <Th>ID</Th>
               <Th>Pieza</Th>
@@ -275,5 +293,22 @@ function TableRow({ id, pieza, area, tipo, prioridad, estado, assignedTo, fecha,
         </div>
       </Td>
     </tr>
+  );
+}
+
+// ✅ Componente Kpi (fuera de TableRow)
+function Kpi({ title, value, color }) {
+  const colors = {
+    indigo: "text-indigo-600 border-indigo-500",
+    blue: "text-blue-600 border-blue-500",
+    red: "text-red-600 border-red-500",
+    green: "text-green-600 border-green-500"
+  };
+
+  return (
+    <div className={`bg-white rounded-xl shadow p-4 border-l-4 ${colors[color]}`}>
+      <p className="text-sm font-medium text-gray-500">{title}</p>
+      <h2 className="text-3xl font-bold text-gray-900 mt-1">{value}</h2>
+    </div>
   );
 }
