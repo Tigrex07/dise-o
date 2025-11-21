@@ -5,7 +5,9 @@ import {
     Tag, CheckSquare, Save, AlertCircle, User, MessageSquareWarning
 } from 'lucide-react';
 
-// Importa la URL base del API. Asumimos que esta constante ya contiene el prefijo base.
+// ======================================================================
+// IMPORT CLAVE MANTENIDO DEL ARCHIVO ORIGINAL
+// ======================================================================
 import API_BASE_URL from '../components/apiConfig'; 
 
 
@@ -18,18 +20,17 @@ const API_USUARIOS_URL = `${API_BASE_URL}${API_USUARIOS_ENDPOINT}`;
 
 // ----------------------------------------------------------------------
 // 1. ConfirmActionModal Componente (MODAL DE CONFIRMACIÓN)
-// (Sin cambios, ya estaba correcto)
+// (Mantiene el diseño y funcionalidad del archivo original)
 // ----------------------------------------------------------------------
 
 /**
- * Modal genérico para confirmar acciones críticas (Componente local integrado)
+ * Modal genérico para confirmar acciones críticas
  */
 function ConfirmActionModal({ isOpen, title, message, actionButtonText, onConfirm, onCancel, data }) {
     if (!isOpen) return null;
 
     const handleConfirm = () => {
         onConfirm(data);
-        // onCancel(); // Se deja que el componente padre cierre el modal después de la acción.
     };
 
     return (
@@ -66,7 +67,7 @@ function ConfirmActionModal({ isOpen, title, message, actionButtonText, onConfir
 
 // ----------------------------------------------------------------------
 // 2. UserFormModal Componente (MODAL DE CREACIÓN/EDICIÓN)
-// (Sin cambios, ya estaba correcto)
+// (Mantiene el diseño y estructura de estado del archivo original)
 // ----------------------------------------------------------------------
 
 /**
@@ -79,9 +80,10 @@ function UserFormModal({ isOpen, userToEdit, onClose, onSave }) {
         email: '',
         rol: 'Operador',
         area: 'Machine Shop',
-        activo: true, // Por defecto, al crear es activo
+        activo: true,
     });
     const [formError, setFormError] = useState(null);
+    const [isSaving, setIsSaving] = useState(false); // Estado para evitar doble click
 
     useEffect(() => {
         if (isOpen) {
@@ -118,7 +120,7 @@ function UserFormModal({ isOpen, userToEdit, onClose, onSave }) {
         }));
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         setFormError(null);
 
@@ -134,8 +136,15 @@ function UserFormModal({ isOpen, userToEdit, onClose, onSave }) {
             ...formData,
         };
 
-        onSave(userPayload, isEditing);
-        onClose();
+        setIsSaving(true);
+        try {
+            await onSave(userPayload, isEditing);
+            onClose();
+        } catch (e) {
+            setFormError(e.message || "Error al guardar el usuario.");
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const ROLES = ["Admin IT", "Ingeniero", "Operador"];
@@ -151,7 +160,7 @@ function UserFormModal({ isOpen, userToEdit, onClose, onSave }) {
                             <User className="mr-2 w-5 h-5 text-indigo-600" />
                             {isEditing ? 'Editar Usuario' : 'Nuevo Usuario'}
                         </h3>
-                        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-full transition">
+                        <button onClick={onClose} disabled={isSaving} className="text-gray-400 hover:text-gray-600 p-1 rounded-full transition">
                             <X size={20} />
                         </button>
                     </div>
@@ -175,6 +184,7 @@ function UserFormModal({ isOpen, userToEdit, onClose, onSave }) {
                                 onChange={handleChange}
                                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
                                 required
+                                disabled={isSaving}
                             />
                         </div>
 
@@ -189,7 +199,9 @@ function UserFormModal({ isOpen, userToEdit, onClose, onSave }) {
                                 onChange={handleChange}
                                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
                                 required
+                                disabled={isEditing || isSaving} // Deshabilitar email en edición
                             />
+                            {isEditing && <p className="text-xs text-gray-500 mt-1">El Email/ID no se puede modificar.</p>}
                         </div>
                         
                         {/* Campo Rol */}
@@ -202,6 +214,7 @@ function UserFormModal({ isOpen, userToEdit, onClose, onSave }) {
                                 onChange={handleChange}
                                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none bg-white pr-8"
                                 required
+                                disabled={isSaving}
                             >
                                 {ROLES.map(rol => (
                                     <option key={rol} value={rol}>{rol}</option>
@@ -219,6 +232,7 @@ function UserFormModal({ isOpen, userToEdit, onClose, onSave }) {
                                 onChange={handleChange}
                                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500 appearance-none bg-white pr-8"
                                 required
+                                disabled={isSaving}
                             >
                                 {AREAS.map(area => (
                                     <option key={area} value={area}>{area}</option>
@@ -226,7 +240,7 @@ function UserFormModal({ isOpen, userToEdit, onClose, onSave }) {
                             </select>
                         </div>
 
-                        {/* Checkbox Activo (Solo visible en edición o si se desea controlar al crear) */}
+                        {/* Checkbox Activo */}
                         <div className="flex items-center mb-6 pt-2 border-t border-gray-100">
                             <input
                                 id="activo"
@@ -235,6 +249,7 @@ function UserFormModal({ isOpen, userToEdit, onClose, onSave }) {
                                 checked={formData.activo}
                                 onChange={handleChange}
                                 className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                                disabled={isSaving}
                             />
                             <label htmlFor="activo" className="ml-2 block text-sm text-gray-900">
                                 Usuario Activo
@@ -246,15 +261,21 @@ function UserFormModal({ isOpen, userToEdit, onClose, onSave }) {
                             <button
                                 type="button"
                                 onClick={onClose}
-                                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition"
+                                disabled={isSaving}
+                                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition disabled:opacity-50"
                             >
                                 Cancelar
                             </button>
                             <button
                                 type="submit"
-                                className="flex items-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-lg transition"
+                                disabled={isSaving}
+                                className="flex items-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-lg transition disabled:opacity-50"
                             >
-                                <Save size={16} className="mr-2" />
+                                {isSaving ? (
+                                    <Loader2 size={16} className="mr-2 animate-spin" />
+                                ) : (
+                                    <Save size={16} className="mr-2" />
+                                )}
                                 {isEditing ? 'Guardar Cambios' : 'Crear Usuario'}
                             </button>
                         </div>
@@ -267,7 +288,7 @@ function UserFormModal({ isOpen, userToEdit, onClose, onSave }) {
 
 // ----------------------------------------------------------------------
 // 3. UserTableRow Componente (Fila de la tabla)
-// (Sin cambios, ya estaba correcto)
+// (Mantiene el diseño del archivo original)
 // ----------------------------------------------------------------------
 
 /**
@@ -322,12 +343,13 @@ function UserTableRow({ user, handleEdit, handleToggleActive }) {
 
 // ----------------------------------------------------------------------
 // 4. Componente Principal: Usuarios
+// (Integra la lógica de API robusta de usuarios2.jsx)
 // ----------------------------------------------------------------------
 
 export default function Usuarios() {
     const [users, setUsers] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
-    const [isLoading, setIsLoading] = useState(false);
+    const [isLoading, setIsLoading] = useState(true); // Cambiado a true por defecto para primera carga
     const [error, setError] = useState(null);
 
     // Estados para Modals
@@ -341,24 +363,23 @@ export default function Usuarios() {
 
     // --- LÓGICA DE LA API ---
 
-    // 1. Obtener todos los usuarios
+    // 1. Obtener todos los usuarios (Lógica mejorada del archivo 2)
     const fetchUsers = useCallback(async () => {
         setIsLoading(true);
         setError(null);
         try {
-            // Usa la URL completa definida arriba
             const response = await fetch(API_USUARIOS_URL); 
             
             if (!response.ok) {
-                throw new Error(`Error al cargar usuarios: ${response.statusText}`);
+                const errorBody = await response.text(); 
+                throw new Error(`Error ${response.status}: No se pudo cargar la lista. Mensaje del API: ${errorBody.substring(0, 50)}...`);
             }
 
             const data = await response.json();
-            // Asumiendo que la API devuelve un array de objetos de usuario
-            setUsers(Array.isArray(data) ? data : []); 
+            setUsers(data); 
         } catch (err) {
             console.error("Error al obtener usuarios:", err);
-            setError(err.message || "No se pudieron cargar los usuarios. Revisa la consola.");
+            setError(err.message || "Fallo la conexión con el API para obtener usuarios.");
             setUsers([]);
         } finally {
             setIsLoading(false);
@@ -370,84 +391,80 @@ export default function Usuarios() {
     }, [fetchUsers]);
 
 
-    // 2. Crear o Editar un Usuario (POST o PUT)
-    const handleSaveUser = async (userPayload, isEditing) => {
-        setIsLoading(true);
-        setError(null);
-        
-        try {
-            const method = isEditing ? 'PUT' : 'POST';
-            // Construye la URL para edición con el ID, o usa la URL base para creación
-            const url = isEditing ? `${API_USUARIOS_URL}/${userPayload.id}` : API_USUARIOS_URL; 
+    // 2. Crear o Editar un Usuario (POST o PUT) (Lógica mejorada del archivo 2)
+    const handleSaveUser = useCallback(async (user, isEditing) => {
+        const method = isEditing ? 'PUT' : 'POST';
+        // Asumiendo que el ID viene en el payload del objeto 'user' cuando se edita
+        const url = isEditing ? `${API_USUARIOS_URL}/${user.id}` : API_USUARIOS_URL; 
 
+        try {
             const response = await fetch(url, {
                 method: method,
                 headers: {
                     'Content-Type': 'application/json',
                     // 'Authorization': 'Bearer YOUR_TOKEN' 
                 },
-                body: JSON.stringify(userPayload),
+                body: JSON.stringify(user), // USAR 'user', no 'userPayload'
             });
 
             if (!response.ok) {
-                // Intenta leer el mensaje de error del cuerpo de la respuesta
                 const errorBody = await response.text();
-                throw new Error(`Error al ${isEditing ? 'editar' : 'crear'} usuario: ${response.statusText} - ${errorBody}`);
+                let errorMessage = `Error ${response.status}: Falló la petición para ${isEditing ? 'editar' : 'crear'} usuario.`;
+                try {
+                    const errorJson = JSON.parse(errorBody);
+                    errorMessage = errorJson.message || errorMessage;
+                } catch {
+                    errorMessage = `${errorMessage} Mensaje del API: ${errorBody.substring(0, 50)}...`;
+                }
+                throw new Error(errorMessage);
             }
 
             // Una vez completada la acción, recarga la lista de usuarios
             await fetchUsers();
             
         } catch (err) {
-            console.error(`Error en la operación de ${isEditing ? 'edición' : 'creación'}:`, err);
-            setError(err.message || `No se pudo ${isEditing ? 'guardar' : 'crear'} el usuario.`);
-        } finally {
-            setIsLoading(false);
-        }
-    };
+            // Re-lanza el error para que UserFormModal lo capture y muestre
+            throw new Error(err.message || `No se pudo ${isEditing ? 'guardar' : 'crear'} el usuario.`);
+        } 
+    }, [fetchUsers]);
 
 
-    // 3. Activar o Inactivar Usuario (PUT)
-    const confirmAction = async (user) => {
-        setIsLoading(true);
+    // 3. Activar o Inactivar Usuario (PATCH) (Lógica mejorada del archivo 2)
+    const confirmAction = useCallback(async (user) => {
+        setIsConfirmModalOpen(false);
+        setUserToConfirm(null);
+        setIsLoading(true); // Mostrar loading al inicio de la acción
         setError(null);
-        
-        const newActivoState = !user.activo;
-        
-        try {
-            // Se asume el endpoint sugerido /usuarios/toggle-active/:id, 
-            // sino, se puede usar /usuarios/:id con el objeto completo
-            const url = `${API_USUARIOS_URL}/${user.id}`; 
-            
-            // Usamos el objeto completo con el nuevo estado 'activo' para un PUT
-            const updatePayload = {...user, activo: newActivoState};
-            // Nota: Si el backend tiene un endpoint específico como '/toggle-active/:id' solo necesitaría el {activo: newActivoState}
 
+        const url = `${API_USUARIOS_URL}/${user.id}`; 
+        // Se asume que la API acepta PATCH con solo el campo 'activo'
+        const payload = { activo: !user.activo };
+        const actionType = user.activo ? 'Inactivación' : 'Activación';
+
+        try {
             const response = await fetch(url, {
-                method: 'PUT',
+                method: 'PATCH', 
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify(updatePayload), 
+                body: JSON.stringify(payload), 
             });
 
             if (!response.ok) {
                 const errorBody = await response.text();
-                throw new Error(`Error al cambiar estado del usuario: ${response.statusText} - ${errorBody}`);
+                throw new Error(`Error ${response.status}: Falló la ${actionType}. Mensaje del API: ${errorBody.substring(0, 50)}...`);
             }
 
             // Recargar datos después de la acción
             await fetchUsers();
             
         } catch (err) {
-            console.error("Error al confirmar la acción:", err);
-            setError(err.message || "No se pudo cambiar el estado del usuario.");
+            console.error(`Error en la ${actionType} (fetch):`, err);
+            setError(err.message || `No se pudo completar la ${actionType} del usuario.`);
         } finally {
-            setIsConfirmModalOpen(false);
-            setUserToConfirm(null);
-            setIsLoading(false);
+            setIsLoading(false); // Ocultar loading al final
         }
-    };
+    }, [fetchUsers]);
 
 
     // --- LÓGICA DE UI/FILTROS ---
@@ -499,7 +516,8 @@ export default function Usuarios() {
                 <div className="flex space-x-3 w-full sm:w-auto">
                     <button
                         onClick={handleOpenModal}
-                        className="flex items-center px-4 py-2 bg-indigo-600 text-white font-semibold rounded-xl shadow-md hover:bg-indigo-700 transition duration-200"
+                        disabled={isLoading}
+                        className="flex items-center px-4 py-2 bg-indigo-600 text-white font-semibold rounded-xl shadow-md hover:bg-indigo-700 transition duration-200 disabled:opacity-50"
                         title="Crear un nuevo usuario"
                     >
                         <PlusCircle size={20} className="mr-2" />
@@ -584,7 +602,7 @@ export default function Usuarios() {
             <footer className="mt-6 text-sm text-gray-600">
                 <p>Total de usuarios: {users.length}</p>
                 <p className="mt-2 text-xs text-indigo-700">Conectado a la API: <span className="font-mono bg-indigo-50 p-1 rounded-md">{API_USUARIOS_URL}</span></p>
-                <p className="mt-2 text-xs text-gray-500">Las operaciones ahora intentan comunicarse con el backend. Revisa la consola para verificar las peticiones y respuestas.</p>
+                <p className="mt-2 text-xs text-gray-500">Las operaciones ahora intentan comunicarse con el backend usando la lógica de API robusta.</p>
             </footer>
 
             {/* MODAL DE EDICIÓN/CREACIÓN */}
