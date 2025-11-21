@@ -1,0 +1,6 @@
+@MachineShopApi_HostAddress = http://localhost:5145
+
+GET {{MachineShopApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
