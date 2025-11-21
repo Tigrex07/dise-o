@@ -55,55 +55,89 @@ export default function TrabajoDetail() {
         <h2 className="text-xl font-semibold mb-4 border-b pb-2">Detalles del Reporte</h2>
         <p className="text-gray-700 mb-4">{solicitud.detalles}</p>
         <ArchivosSolicitud solicitudId={solicitud.id} userRol={"TI"} />
+        <button
+  onClick={handleInicioTrabajo}
+  className="mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg transition"
+>
+  Iniciar Trabajo
+</button>
 
-        {/* Panel de Asignación */}
-        {solicitud.estado === 'Nueva' && isMachineShop && (
-          <div className="mt-6 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
-            <h3 className="font-bold mb-3 text-lg text-yellow-800">Acción Requerida: Asignar</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1"><User size={14} className="inline mr-1" /> Maquinista</label>
-                <select className="w-full border border-gray-300 rounded-lg px-3 py-2">
-                  <option>Selecciona Maquinista...</option>
-                  {maquinistas.map(m => <option key={m.id}>{m.nombre}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1"><AlertTriangle size={14} className="inline mr-1" /> Prioridad</label>
-                <select className="w-full border border-gray-300 rounded-lg px-3 py-2">
-                  <option>Selecciona Prioridad</option>
-                  {prioridades.map(p => <option key={p}>{p}</option>)}
-                </select>
-              </div>
-            </div>
-            <button onClick={handleAsignacion} className="mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition">Guardar Asignación</button>
-          </div>
-        )}
+        {/* Panel de Tiempos */}
+{solicitud.estado === 'En progreso' && (
+  <div className="mt-6 p-4 bg-green-50 rounded-lg border border-green-200">
+    <h3 className="font-bold mb-3 text-lg text-green-800">Registro de Tiempos por Máquina</h3>
+    <div className="space-y-4">
+      {[
+        "Fresadora",
+        "Rectificadora",
+        "Corte con Hilo",
+        "Cortadora",
+        "CNC",
+        "Torno",
+        "Erosionadora",
+        "Soldadura Tic",
+        "Soldadura Laser"
+      ].map(maquina => (
+        <div key={maquina} className="flex items-center gap-4">
+          <label className="w-48 font-medium text-gray-700">{maquina}</label>
+          <input
+            type="number"
+            min="0"
+            step="0.5"
+            value={solicitud.tiempos?.[maquina] || ""}
+            onChange={(e) =>
+              setSolicitud({
+                ...solicitud,
+                tiempos: {
+                  ...solicitud.tiempos,
+                  [maquina]: e.target.value
+                }
+              })
+            }
+            placeholder="Horas"
+            className="w-32 border border-gray-300 rounded-lg px-3 py-2"
+          />
+        </div>
+      ))}
+    </div>
+    <div className="flex justify-between mt-6">
+      <button
+        onClick={handleRegistroAvance}
+        className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition"
+      >
+        Guardar Tiempos
+      </button>
+      <button
+        onClick={handleFinalizar}
+        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition"
+      >
+        Enviar a Revisión de Calidad
+      </button>
+    </div>
+  </div>
+)}
 
-        {/* Panel de Avance */}
-        {solicitud.estado === 'En progreso' && isMaquinistaAsignado && (
-          <div className="mt-6 p-4 bg-green-50 rounded-lg border border-green-200">
-            <h3 className="font-bold mb-3 text-lg text-green-800">Registro de Avance</h3>
-            <div className="grid grid-cols-2 gap-4 mb-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1"><Clock size={14} className="inline mr-1" /> Tiempo Máquina (min)</label>
-                <input type="number" value={solicitud.tiempoMaquina} onChange={(e) => setSolicitud({...solicitud, tiempoMaquina: e.target.value})} className="w-full border border-gray-300 rounded-lg px-3 py-2" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1"><Hammer size={14} className="inline mr-1" /> Máquina Usada</label>
-                <select className="w-full border border-gray-300 rounded-lg px-3 py-2">
-                  <option>Selecciona Máquina</option>
-                  {maquinas.map(m => <option key={m}>{m}</option>)}
-                </select>
-              </div>
-            </div>
-            <textarea value={solicitud.observaciones} onChange={(e) => setSolicitud({...solicitud, observaciones: e.target.value})} placeholder="Observaciones y avances realizados..." rows="3" className="w-full border border-gray-300 rounded-lg px-3 py-2 mb-4" />
-            <div className="flex justify-between">
-              <button onClick={handleRegistroAvance} className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition">Guardar Avance</button>
-              <button onClick={handleFinalizar} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition">Enviar a Revisión de Calidad</button>
-            </div>
-          </div>
-        )}
+        {/* Panel de Comentarios */}
+{solicitud.estado === 'En progreso' && (
+  <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+    <h3 className="font-bold mb-3 text-lg text-blue-800">Comentarios del Maquinista</h3>
+    <textarea
+      value={solicitud.observaciones}
+      onChange={(e) => setSolicitud({ ...solicitud, observaciones: e.target.value })}
+      placeholder="Escribe aquí tus comentarios sobre el trabajo realizado..."
+      rows="4"
+      className="w-full border border-gray-300 rounded-lg px-3 py-2 mb-4"
+    />
+    <div className="flex justify-end">
+      <button
+        onClick={handleFinalizar}
+        className="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg transition"
+      >
+        Cerrar Trabajo
+      </button>
+    </div>
+  </div>
+)}
       </div>
     </div>
   );
