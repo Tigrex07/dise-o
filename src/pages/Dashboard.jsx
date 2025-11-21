@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { PlusCircle, Edit, Trash2, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { MOCK_SOLICITUDES } from "../data/solicitudesMock";
+
 
 // --- MOCK DATA (actualizado para Work Orders y con campo assignedTo) ---
 const MOCK_REPORTS = [
@@ -65,10 +67,16 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const kpis = useMemo(() => {
   const total = reports.length;
-  const enProceso = reports.filter(r => r.estado === "En progreso").length;
-  const pendiente = reports.filter(r => r.estado === "Nueva" || r.estado === "Asignada").length;
+
+  const enProceso = reports.filter(r => r.estado?.toLowerCase() === "en proceso").length;
+
+  const pendiente = reports.filter(r => {
+    const estado = r.estado?.toLowerCase();
+    return estado === "nueva" || estado === "asignada" || estado === "pendiente";
+  }).length;
+
   const avgDays = total > 0
-    ? (reports.reduce((acc, r) => acc + (parseInt(r.diasAbierto || "0")), 0) / total).toFixed(1)
+    ? (reports.reduce((acc, r) => acc + Number(r.diasAbierto || 0), 0) / total).toFixed(1)
     : 0;
 
   return { total, enProceso, pendiente, avgDays };
@@ -81,7 +89,12 @@ export default function Dashboard() {
   useEffect(() => {
     // Simulación de carga
     setTimeout(() => {
-      setReports(MOCK_REPORTS.filter(r => r.estado !== "Completado"));
+      setReports(MOCK_SOLICITUDES.filter(r => {
+  const estado = r.estado?.toLowerCase();
+  return estado !== "completado" && estado !== "terminado";
+}));
+
+
       setIsLoading(false);
     }, 600);
   }, []);
@@ -180,17 +193,7 @@ export default function Dashboard() {
         <table className="min-w-full border-collapse">
           <thead className="bg-gray-200">
             
-            <tr>
-              <Th>ID</Th>
-              <Th>Pieza</Th>
-              <Th>Área</Th>
-              <Th>Tipo</Th>
-              <Th>Prioridad</Th>
-              <Th>Estado</Th>
-              <Th>Asignado</Th>
-              <Th>Fecha</Th>
-              <Th>Acciones</Th>
-            </tr>
+            <tr><Th>ID</Th><Th>Descripción</Th><Th>N°</Th><Th>Pieza o Solicitante</Th><Th>Prioridad</Th><Th>Estado</Th><Th>Responsable</Th><Th>Fecha Compromiso</Th><Th>Días Abierto</Th><Th>Acciones</Th></tr>
           </thead>
           <tbody>
             {isLoading ? (
@@ -235,7 +238,21 @@ function Td({ children }) {
   return <td className="px-4 py-3 text-sm border-b border-gray-200">{children}</td>;
 }
 
-function TableRow({ id, pieza, area, tipo, prioridad, estado, assignedTo, fecha, navigate }) {
+function TableRow({
+  id,
+  pieza,
+  maquina,
+  area,
+  tipo,
+  prioridad,
+  estado,
+  assignedTo,
+  solicitante,
+  fecha,
+  fechaCompromiso,
+  diasAbierto,
+  navigate
+}) {
   const handleAction = () => {
     if (estado === "Revision Calidad") {
       navigate(`/revision-calidad/${id}`);
@@ -243,56 +260,76 @@ function TableRow({ id, pieza, area, tipo, prioridad, estado, assignedTo, fecha,
       navigate(`/trabajo/${id}`);
     }
   };
+const getStatusClasses = (valor) => {
+  const estado = valor?.toString().trim().toLowerCase();
 
-  const getStatusClasses = (status) => {
-    switch (status) {
-      case "Nueva":
-        return "bg-red-100 text-red-700 font-medium";
-      case "Asignada":
-        return "bg-orange-100 text-orange-700 font-medium";
-      case "En progreso":
-        return "bg-blue-100 text-blue-700 font-medium";
-      case "Revision Calidad":
-        return "bg-purple-100 text-purple-700 font-medium";
-      case "Completado":
-        return "bg-green-100 text-green-700 font-medium";
-      default:
-        return "bg-gray-100 text-gray-700";
-    }
-  };
+  switch (estado) {
+    case "media":
+      return "bg-yellow-100 text-yellow-700";
+    case "alta":
+      return "bg-red-100 text-red-700";
+    case "pendiente":
+      return "bg-red-100 text-red-700";
+    case "en proceso":
+      return "bg-blue-100 text-blue-700";
+    case "baja":
+      return "bg-green-100 text-green-700";
+    case "crítica":
+      return "bg-purple-100 text-purple-700";
+    case "revision calidad":
+      return "bg-indigo-100 text-indigo-700";
+    case "completado":
+      return "bg-gray-100 text-gray-700";
+    default:
+      return "bg-gray-200 text-gray-600";
+  }
+};  
 
   return (
     <tr className="border-b border-gray-200 hover:bg-gray-50 transition duration-100">
-      <Td>{id}</Td>
-      <Td>{pieza}</Td>
-      <Td>{area}</Td>
-      <Td>{tipo}</Td>
-      <Td>{prioridad}</Td>
-      <Td>
-        <span className={`px-3 py-1 rounded-full text-xs tracking-wider ${getStatusClasses(estado)}`}>
-          {estado}
-        </span>
-      </Td>
-      <Td>{assignedTo || "—"}</Td>
-      <Td>{fecha}</Td>
-      <Td>
-        <div className="flex gap-2">
-          <button
-            title="Ver/Editar Orden"
-            onClick={handleAction}
-            className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50 transition"
-          >
-            <Edit size={18} />
-          </button>
-          <button
-            title="Eliminar orden (Solo Admin)"
-            className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50 transition"
-          >
-            <Trash2 size={18} />
-          </button>
-        </div>
-      </Td>
-    </tr>
+  <Td>{id}</Td>
+  <Td>{pieza}</Td>
+  <Td>{maquina || "—"}</Td>
+  <Td>{area}</Td>
+  <Td>
+  <span className={`px-3 py-1 rounded-full text-xs tracking-wider font-semibold ${getStatusClasses(prioridad)}`}>
+    {prioridad}
+  </span>
+</Td>
+  <Td>
+    <span className={`px-3 py-1 rounded-full text-xs tracking-wider ${getStatusClasses(estado)}`}>
+      {estado}
+    </span>
+  </Td>
+  <Td>{assignedTo || solicitante || "—"}</Td>
+  <Td>{fechaCompromiso || fecha || "—"}</Td>
+  <Td className={`font-medium ${diasAbierto > 20 ? 'text-red-600' : 'text-green-600'}`}>
+    {diasAbierto ? `${diasAbierto} días` : '—'}
+  </Td>
+  <Td>
+    <div className="flex gap-2">
+      <button
+        title="Ver/Editar Orden"
+        onClick={() => {
+          if (estado === "Revision Calidad") {
+            navigate(`/revision-calidad/${id}`);
+          } else {
+            navigate(`/trabajo/${id}`);
+          }
+        }}
+        className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50 transition"
+      >
+        <Edit size={18} />
+      </button>
+      <button
+        title="Eliminar orden (Solo Admin)"
+        className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50 transition"
+      >
+        <Trash2 size={18} />
+      </button>
+    </div>
+  </Td>
+</tr>
   );
 }
 

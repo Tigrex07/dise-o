@@ -6,19 +6,22 @@ import dayjs from 'dayjs';
 export default function Historial() {
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Filtrar solo trabajos completados
+  // Filtrar solo trabajos finalizados
   const trabajosCompletados = useMemo(() => {
-    return MOCK_SOLICITUDES.filter(s => s.estado === 'Completado');
+    return MOCK_SOLICITUDES.filter(s => {
+      const estado = s.estado?.toLowerCase();
+      return estado === 'completado' || estado === 'terminado';
+    });
   }, []);
 
   // KPIs
   const kpis = useMemo(() => {
     const hoy = dayjs();
     const esteMes = trabajosCompletados.filter(s =>
-      dayjs(s.fechaFinalizado).isSame(hoy, 'month')
+      dayjs(s.fechaFinalizacion).isSame(hoy, 'month')
     );
     const estaSemana = trabajosCompletados.filter(s =>
-      dayjs(s.fechaFinalizado).isSame(hoy, 'week')
+      dayjs(s.fechaFinalizacion).isSame(hoy, 'week')
     );
 
     return {
@@ -33,7 +36,7 @@ export default function Historial() {
     if (!searchTerm) return trabajosCompletados;
     const lower = searchTerm.toLowerCase();
     return trabajosCompletados.filter(s =>
-      s.piezaId?.toLowerCase().includes(lower) ||
+      s.pieza?.toLowerCase().includes(lower) ||
       s.solicitante?.toLowerCase().includes(lower)
     );
   }, [searchTerm, trabajosCompletados]);
@@ -65,36 +68,33 @@ export default function Historial() {
       <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
-            
-              
-  <tr>
-    <Th>ID</Th>
-    <Th>Pieza</Th>
-    <Th>Solicitante</Th>
-    <Th>Maquinista</Th> {/* ✅ Cuarta columna */}
-    <Th>Fecha Creación</Th>
-    <Th>Fecha Finalización</Th>
-    <Th>Días desde Finalizado</Th> {/* ✅ Séptima columna */}
-  </tr>
-</thead>
-            
-         <tbody>
-  {filtrados.map(s => (
-    <tr key={s.id}>
-      <Td>{s.id}</Td>
-      <Td>{s.pieza}</Td>
-      <Td>{s.solicitante}</Td>
-      <Td>{s.trabajadoPor || '—'}</Td> {/* ✅ Maquinista */}
-      <Td>{s.fecha}</Td>
-      <Td>{s.fechaFinalizado || '—'}</Td>
-      <Td>
-        {s.fechaFinalizado
-          ? dayjs().diff(dayjs(s.fechaFinalizado), 'day') + ' días'
-          : '—'}
-      </Td> {/* ✅ Días desde finalizado */}
-    </tr>
-  ))}
-</tbody>
+            <tr>
+              <Th>ID</Th>
+              <Th>Pieza</Th>
+              <Th>Solicitante</Th>
+              <Th>Maquinista</Th>
+              <Th>Fecha Creación</Th>
+              <Th>Fecha Finalización</Th>
+              <Th>Días desde Finalizado</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtrados.map(s => (
+              <tr key={s.id}>
+                <Td>{s.id}</Td>
+                <Td>{s.pieza}</Td>
+                <Td>{s.solicitante}</Td>
+                <Td>{s.trabajadoPor || '—'}</Td>
+                <Td>{s.fecha}</Td>
+                <Td>{s.fechaFinalizacion || '—'}</Td>
+                <Td>
+                  {s.fechaFinalizacion
+                    ? dayjs().diff(dayjs(s.fechaFinalizacion), 'day') + ' días'
+                    : '—'}
+                </Td>
+              </tr>
+            ))}
+          </tbody>
         </table>
       </div>
     </div>
