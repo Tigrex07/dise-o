@@ -15,9 +15,11 @@ namespace MachineShopApi.Models
         public string Nombre { get; set; } = string.Empty;
 
         [Required]
-        [MaxLength(100)]
-        public string Email { get; set; } = string.Empty;
+        [EmailAddress]
+        public string Email { get; set; } = string.Empty; // Nuevo
 
+        [Required]
+        public string PasswordHash { get; set; } = string.Empty; // Nuevo
         [Required]
         [MaxLength(50)]
         public string Area { get; set; } = string.Empty;

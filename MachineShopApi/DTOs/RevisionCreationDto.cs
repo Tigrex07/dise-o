@@ -1,28 +1,22 @@
+Ôªøusing System;
 using System.ComponentModel.DataAnnotations;
 
 namespace MachineShopApi.DTOs
 {
+    // DTO usado para crear un nuevo registro de Revisi√≥n (POST)
     public class RevisionCreationDto
     {
-        // 1. Identificadores
-        [Required]
-        public int IdSolicitud { get; set; } // La solicitud que se est· revisando
+        [Required(ErrorMessage = "El ID de la solicitud es obligatorio.")]
+        public int IdSolicitud { get; set; }
 
-        [Required]
-        public int IdRevisor { get; set; } // QuiÈn est· haciendo la revisiÛn (Usuario ID)
+        [Required(ErrorMessage = "El ID del revisor es obligatorio.")]
+        public int IdRevisor { get; set; }
 
-        // 2. Resultado de la revisiÛn
-        [Required]
+        // üö® CR√çTICO: Usar Prioridad en lugar de NivelUrgencia
+        [Required(ErrorMessage = "La prioridad es obligatoria.")]
         [MaxLength(20)]
-        public string NivelUrgencia { get; set; } = string.Empty;// Ej: Baja, Media, Alta, CrÌtica
+        public string Prioridad { get; set; } = string.Empty;
 
-        [Required]
-        [MaxLength(50)]
-        public string EstadoRevision { get; set; } = string.Empty;// Ej: Aprobada, Devuelta, Requiere m·s info
-
-        [MaxLength(500)]
-        public string Comentarios { get; set; } = string.Empty;
-
-        // La FechaHoraRevision la genera el controlador con DateTime.Now
+        public string? Comentarios { get; set; }
     }
 }

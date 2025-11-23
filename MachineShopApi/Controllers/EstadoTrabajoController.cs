@@ -1,8 +1,12 @@
-using Microsoft.AspNetCore.Mvc;
+锘縰sing Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MachineShopApi.Models;
-using MachineShopApi.DTOs;
+using MachineShopApi.DTOs; // Se asume que existe EstadoTrabajoCreationDto y EstadoTrabajoUpdateDto
 using MachineShopApi.Data;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using System;
 
 namespace MachineShopApi.Controllers
 {
@@ -18,49 +22,121 @@ namespace MachineShopApi.Controllers
         }
 
         // GET: api/EstadoTrabajo
+        // Obtiene TODO el historial de operaciones de todas las solicitudes
         [HttpGet]
         public async Task<ActionResult<IEnumerable<EstadoTrabajo>>> GetEstadosTrabajo()
         {
-            // Incluir Solicitud y Maquinista (Usuario)
-            return await _context.EstadoTrabajos
+            // 馃毃 IMPORTANTE: Usar el nombre del DbSet que definiste en ApplicationDBContext.cs (EstadoTrabajo)
+            return await _context.EstadoTrabajo
                 .Include(e => e.Solicitud)
                 .Include(e => e.Maquinista)
                 .ToListAsync();
         }
 
+        // GET: api/EstadoTrabajo/Solicitud/5
+        // Obtiene el historial de una solicitud espec铆fica
+        [HttpGet("Solicitud/{idSolicitud}")]
+        public async Task<ActionResult<IEnumerable<EstadoTrabajo>>> GetHistorialSolicitud(int idSolicitud)
+        {
+            // 馃毃 IMPORTANTE: Usar el nombre del DbSet correcto (EstadoTrabajo)
+            var historial = await _context.EstadoTrabajo
+                .Where(e => e.IdSolicitud == idSolicitud)
+                .Include(e => e.Maquinista)
+                .OrderByDescending(e => e.FechaYHoraDeInicio)
+                .ToListAsync();
+
+            if (historial == null || !historial.Any())
+            {
+                return NotFound("No se encontr贸 historial para esta solicitud.");
+            }
+
+            return historial;
+        }
+
         // POST: api/EstadoTrabajo
-        // Esta acci髇 registra el inicio del trabajo en una solicitud.
-        // Necesitas un EstadoTrabajoCreationDto
+        // Esta acci贸n registra el INICIO de un trabajo o un nuevo estado.
         [HttpPost]
         public async Task<ActionResult<EstadoTrabajo>> PostEstadoTrabajo(EstadoTrabajoCreationDto estadoDto)
         {
+            // Validaciones de existencia de FKs
+            var solicitudExiste = await _context.Solicitudes.AnyAsync(s => s.Id == estadoDto.IdSolicitud);
+            var maquinistaExiste = await _context.Usuarios.AnyAsync(u => u.Id == estadoDto.IdMaquinista);
+
+            if (!solicitudExiste || !maquinistaExiste)
+            {
+                return BadRequest("El ID de Solicitud o Maquinista proporcionado no es v谩lido.");
+            }
+
             // 1. Crear el registro de inicio de trabajo
             var estadoTrabajo = new EstadoTrabajo
             {
                 IdSolicitud = estadoDto.IdSolicitud,
                 IdMaquinista = estadoDto.IdMaquinista,
-                FechaHoraInicio = DateTime.Now,
                 MaquinaAsignada = estadoDto.MaquinaAsignada,
-                TiempoMaquina = TimeSpan.Zero, // Se inicializa en 0
-                Observaciones = estadoDto.Observaciones
+                DescripcionOperacion = estadoDto.DescripcionOperacion,
+                Observaciones = estadoDto.Observaciones,
+
+                // 馃挕 INICIO: Se registra el tiempo de inicio
+                FechaYHoraDeInicio = DateTime.Now,
+
+                // 馃挕 INICIO: La fecha de fin es NULL y el tiempo es 0.00
+                FechaYHoraDeFin = null,
+                TiempoMaquina = 0.00m,
             };
 
-            _context.EstadoTrabajos.Add(estadoTrabajo);
+            // 馃毃 IMPORTANTE: Usar el nombre del DbSet correcto (EstadoTrabajo)
+            _context.EstadoTrabajo.Add(estadoTrabajo);
 
-            // 2. ACTUALIZAR EL ESTADO DE LA SOLICITUD
-            var solicitud = await _context.Solicitudes.FindAsync(estadoDto.IdSolicitud);
-            if (solicitud != null)
-            {
-                solicitud.EstadoActual = "En Proceso: " + estadoTrabajo.MaquinaAsignada;
-                _context.Entry(solicitud).State = EntityState.Modified;
-            }
+            // 馃毃 ELIMINADO: Ya no actualizamos Solicitud.EstadoActual porque fue eliminado. 
+            // El estado se infiere de este nuevo registro de EstadoTrabajo.
 
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetEstadosTrabajo), new { id = estadoTrabajo.IdEstado }, estadoTrabajo);
+            // Usar Id para el CreatedAtAction (asumiendo que IdEstado es la PK)
+            return CreatedAtAction(nameof(GetHistorialSolicitud), new { idSolicitud = estadoTrabajo.IdSolicitud }, estadoTrabajo);
         }
 
-        // ... (Puedes agregar un m閠odo PUT/PATCH para registrar el FIN del trabajo,
-        // actualizando el TiempoMaquina y cambiando el estado de la Solicitud a "Terminado") ...
+        // PUT: api/EstadoTrabajo/5
+        // Esta acci贸n registra el FIN de un trabajo, calcula el tiempo y avanza la solicitud.
+        [HttpPut("{id}")]
+        public async Task<IActionResult> PutEstadoTrabajo(int id, EstadoTrabajoUpdateDto estadoUpdateDto)
+        {
+            // 1. Obtener el estado de trabajo a finalizar
+            // 馃毃 IMPORTANTE: Usar el nombre del DbSet correcto (EstadoTrabajo)
+            var estado = await _context.EstadoTrabajo.FindAsync(id);
+            if (estado == null)
+            {
+                return NotFound();
+            }
+
+            // 2. Aplicar las actualizaciones (solo para registros NO finalizados)
+            if (estado.FechaYHoraDeFin == null)
+            {
+                estado.FechaYHoraDeFin = DateTime.Now; // 馃挕 FIN: Registrar el tiempo de fin
+
+                // C谩lculo del tiempo transcurrido
+                TimeSpan duracion = estado.FechaYHoraDeFin.Value - estado.FechaYHoraDeInicio;
+
+                // Asignaci贸n de tiempo en horas decimales (Ej: 1.5 horas)
+                estado.TiempoMaquina = (decimal)duracion.TotalHours;
+            }
+
+            // Aplicar otros campos de la actualizaci贸n (como observaciones)
+            estado.Observaciones = estadoUpdateDto.Observaciones ?? estado.Observaciones;
+
+
+            _context.Entry(estado).State = EntityState.Modified;
+
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException) when (!_context.EstadoTrabajo.Any(e => e.Id == id))
+            {
+                return NotFound();
+            }
+
+            return NoContent();
+        }
     }
 }

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Collections.Generic; // Necesario para ICollection
 
 namespace MachineShopApi.Models
 {
@@ -23,8 +24,11 @@ namespace MachineShopApi.Models
         public string Turno { get; set; } = string.Empty; // Ej: Turno A, B, C
         public string Tipo { get; set; } = string.Empty; // Ej: Daño Físico, Mejora, Fabricación
         public string Detalles { get; set; } = string.Empty;
-        public string Prioridad { get; set; } = string.Empty; // Ej: Baja, Media, Alta, Urgente
-        public string EstadoActual { get; set; } = string.Empty; // Ej: Pendiente, En Revisión, En Proceso, Completado
+        public string Dibujo { get; set; } = string.Empty; // Nuevo campo
+
+        // 🚨 ELIMINADAS: Prioridad y EstadoActual
+        // public string Prioridad { get; set; } = string.Empty; 
+        // public string EstadoActual { get; set; } = string.Empty; 
 
         // ===================================================
         // Propiedades de Navegación
@@ -38,14 +42,11 @@ namespace MachineShopApi.Models
         [ForeignKey("IdPieza")]
         public Pieza Pieza { get; set; } = default!;
 
-        // Relación 1:1 con EstadoTrabajo (para la trazabilidad del proceso)
-        public EstadoTrabajo? EstadoTrabajo { get; set; }
+        // 🚨 CAMBIO CRÍTICO: Relación 1:N con EstadoTrabajo (Historial de Operaciones)
+        // Sustituye la relación 1:1 anterior.
+        public ICollection<EstadoTrabajo> Operaciones { get; set; } = new List<EstadoTrabajo>();
 
         // Relación 1:1 con Revision (para la revisión de ingeniería/calidad)
         public Revision? Revision { get; set; }
-
-        // NOTA: Se ha ELIMINADO la propiedad 'public ICollection<Solicitud> SolicitudesRealizadas { get; set; }'
-        //       porque las Solicitudes no tienen una colección de otras Solicitudes.
-        //       Esa colección pertenece al modelo 'Usuario'.
     }
 }

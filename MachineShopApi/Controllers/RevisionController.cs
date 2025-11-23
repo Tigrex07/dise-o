@@ -1,8 +1,12 @@
-using Microsoft.AspNetCore.Mvc;
+锘縰sing Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MachineShopApi.Models;
-using MachineShopApi.DTOs;
+using MachineShopApi.DTOs; // Aseg煤rate de tener RevisionCreationDto
 using MachineShopApi.Data;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using System;
 
 namespace MachineShopApi.Controllers
 {
@@ -17,55 +21,83 @@ namespace MachineShopApi.Controllers
             _context = context;
         }
 
-        // GET: api/Revision
-        [HttpGet]
-        public async Task<ActionResult<IEnumerable<Revision>>> GetRevisiones()
-        {
-            // Incluimos la Solicitud y el Revisor (Usuario) para contexto
-            return await _context.Revisiones
-                .Include(r => r.Solicitud)
-                .Include(r => r.Revisor)
-                .ToListAsync();
-        }
-
         // POST: api/Revision
-        // Esta es la acci髇 de 'aprobar/devolver' una solicitud.
-        // Necesitas un RevisionCreationDto con IdSolicitud, IdRevisor, NivelUrgencia, EstadoRevision, Comentarios
+        // Crea una nueva revisi贸n y actualiza la prioridad de la solicitud.
         [HttpPost]
         public async Task<ActionResult<Revision>> PostRevision(RevisionCreationDto revisionDto)
         {
-            // 1. Crear el objeto Revision
+            // 1. Validaciones
+            var solicitudExiste = await _context.Solicitudes.AnyAsync(s => s.Id == revisionDto.IdSolicitud);
+            var revisorExiste = await _context.Usuarios.AnyAsync(u => u.Id == revisionDto.IdRevisor);
+
+            if (!solicitudExiste || !revisorExiste)
+            {
+                return BadRequest("El ID de Solicitud o Revisor proporcionado no es v谩lido.");
+            }
+
+            // Verificar que no exista ya una revisi贸n para esta solicitud (Relaci贸n 1:1)
+            var revisionExistente = await _context.Revisiones.AnyAsync(r => r.IdSolicitud == revisionDto.IdSolicitud);
+            if (revisionExistente)
+            {
+                return Conflict("Ya existe un registro de revisi贸n para esta solicitud.");
+            }
+
+            // 2. Mapear DTO al Modelo
             var revision = new Revision
             {
                 IdSolicitud = revisionDto.IdSolicitud,
                 IdRevisor = revisionDto.IdRevisor,
-                NivelUrgencia = revisionDto.NivelUrgencia,
-                EstadoRevision = revisionDto.EstadoRevision,
+                // 馃毃 CORREGIDO CS1061 (L铆nea 42 y 58): Usar Prioridad, no NivelUrgencia
+                Prioridad = revisionDto.Prioridad,
                 Comentarios = revisionDto.Comentarios,
-                FechaHoraRevision = DateTime.Now // Se registra la fecha actual
+                FechaHoraRevision = DateTime.Now
             };
 
             _context.Revisiones.Add(revision);
 
-            // 2. ACTUALIZAR EL ESTADO DE LA SOLICITUD ASOCIADA
-            var solicitud = await _context.Solicitudes.FindAsync(revisionDto.IdSolicitud);
-            if (solicitud == null)
-            {
-                // Manejar error si la solicitud no existe
-                return NotFound("Solicitud asociada no encontrada.");
-            }
+            // 3. 馃挕 FLUJO DE ESTADO: Crear un nuevo registro en EstadoTrabajo que indique el cambio de estado
+            // Usamos Id=1 (Usuario de Sistema) para el estado inicial (que se cre贸 con 'En Revisi贸n').
+            int idMaquinistaSistema = 1;
 
-            // Actualizar el estado y la prioridad de la solicitud
-            solicitud.Prioridad = revisionDto.NivelUrgencia;
-            solicitud.EstadoActual = "Revisado: " + revisionDto.EstadoRevision;
-            _context.Entry(solicitud).State = EntityState.Modified;
+            var nuevoEstado = new EstadoTrabajo
+            {
+                IdSolicitud = revision.IdSolicitud,
+                IdMaquinista = idMaquinistaSistema,
+                MaquinaAsignada = "N/A",
+
+                FechaYHoraDeInicio = DateTime.Now,
+                FechaYHoraDeFin = null, // Como es solo un cambio de estado, el tiempo de m谩quina es 0/NULL
+
+                DescripcionOperacion = $"Revisi贸n de Ingenier铆a: Prioridad {revision.Prioridad}",
+                TiempoMaquina = 0,
+                Observaciones = "Prioridad y comentarios de ingenier铆a establecidos."
+            };
+
+            // 馃毃 IMPORTANTE: Usar el DbSet correcto que es 'EstadoTrabajo' (no EstadoTrabajos)
+            _context.EstadoTrabajo.Add(nuevoEstado);
 
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction(nameof(GetRevisiones), new { id = revision.IdRevision }, revision);
+            // 馃毃 CORREGIDO CS1061 (L铆nea 63): Usar Id (PK del modelo), no IdRevision
+            return CreatedAtAction(nameof(GetRevision), new { id = revision.Id }, revision);
         }
 
-        // ... (Implementar GET/{id} y los dem醩 m閠odos si son necesarios.
-        // Las revisiones a menudo no se editan/eliminan despu閟 de crearse por motivos de auditor韆.) ...
+        // GET: api/Revision/5
+        [HttpGet("{id}")]
+        public async Task<ActionResult<Revision>> GetRevision(int id)
+        {
+            // 馃毃 CORREGIDO: Usar Id, no IdRevision
+            var revision = await _context.Revisiones.FindAsync(id);
+
+            if (revision == null)
+            {
+                return NotFound();
+            }
+
+            return revision;
+        }
+
+        // Otros m茅todos (GET ALL, PUT, DELETE) deben ser implementados.
+        // El m茅todo PUT debe usar el DTO de actualizaci贸n y el campo Prioridad.
     }
 }

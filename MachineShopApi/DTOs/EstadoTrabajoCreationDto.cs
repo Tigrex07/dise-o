@@ -1,24 +1,25 @@
-using System.ComponentModel.DataAnnotations;
 using System;
+using System.ComponentModel.DataAnnotations;
 
 namespace MachineShopApi.DTOs
 {
+    // DTO usado para registrar el INICIO de un nuevo estado de trabajo (POST)
     public class EstadoTrabajoCreationDto
     {
-        [Required]
-        public int IdSolicitud { get; set; } // Solicitud que va a empezar a trabajarse
+        [Required(ErrorMessage = "El ID de la solicitud es obligatorio.")]
+        public int IdSolicitud { get; set; }
 
-        [Required]
-        public int IdMaquinista { get; set; } // Usuario que inicia el trabajo
+        [Required(ErrorMessage = "El ID del maquinista es obligatorio.")]
+        public int IdMaquinista { get; set; }
 
-        [Required]
+        [Required(ErrorMessage = "La máquina asignada es obligatoria.")]
         [MaxLength(50)]
-        public string MaquinaAsignada { get; set; } = string.Empty;// Ej: CNC1, Torno C
+        public string MaquinaAsignada { get; set; } = string.Empty;
 
-        [MaxLength(500)]
-        public string Observaciones { get; set; } = string.Empty;
+        [Required(ErrorMessage = "La descripción de la operación es obligatoria.")]
+        [MaxLength(100)]
+        public string DescripcionOperacion { get; set; } = string.Empty;
 
-        // La FechaYHoraDeInicio se genera con DateTime.Now en el controlador.
-        // El TiempoMaquina se inicializa en 0 o se actualiza en un PATCH/PUT posterior de "Finalización".
+        public string? Observaciones { get; set; }
     }
 }

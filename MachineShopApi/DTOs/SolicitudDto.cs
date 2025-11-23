@@ -1,4 +1,4 @@
-using System;
+ï»¿using System;
 using System.ComponentModel.DataAnnotations;
 
 namespace MachineShopApi.DTOs
@@ -9,27 +9,41 @@ namespace MachineShopApi.DTOs
         public int Id { get; set; }
 
         // --- Datos Desnormalizados (nombres de las FKs) ---
-        // Se obtienen mediante un JOIN/Include en el controlador
         public string SolicitanteNombre { get; set; } = string.Empty;
         public string PiezaNombre { get; set; } = string.Empty;
-
-        // La Máquina ahora se infiere de la Pieza (asumimos que Pieza tiene un campo Maquina)
-        // Si no, este campo se puede mantener como string si lo almacena la tabla Pieza.
-        // Como el modelo Solicitud no tiene campo 'Maquina' directo, lo obtenemos de Pieza.
-        // Si Pieza no tiene Maquina, puedes obtenerlo desde la relación Pieza.
-        // Por ahora, asumiremos que el nombre de la Pieza es suficiente.
 
         // --- Datos Directos del Modelo Solicitud ---
         public DateTime FechaYHora { get; set; }
         public string Turno { get; set; } = string.Empty;
         public string Tipo { get; set; } = string.Empty;
         public string Detalles { get; set; } = string.Empty;
-        public string Prioridad { get; set; } = string.Empty; // Ej: Baja, Media, Alta, Urgente
-        public string EstadoActual { get; set; } = string.Empty; // Ej: Pendiente, En Revisión, Completado
+        public string Dibujo { get; set; } = string.Empty;
 
-        // --- Propiedades de Navegación Simplificadas ---
-        // Exponemos las propiedades de las relaciones 1:1, pero simplificadas o a través de otro DTO.
-        // Para simplificar, asumiremos que EstadoTrabajo y Revision se cargan en el controlador 
-        // y se usan para poblar el EstadoActual y notas de revisión si son necesarias.
+        // ðŸš¨ ELIMINADAS: Ya no existen en el modelo Solicitud.
+        // public string Prioridad { get; set; } = string.Empty; 
+        // public string EstadoActual { get; set; } = string.Empty; 
+
+        // --- Propiedades Derivadas (del nuevo esquema 1:N) ---
+        // Estos campos son calculados por el controlador a partir del historial (Revision y EstadoTrabajo)
+
+        /// <summary>
+        /// Viene de Revision.Prioridad (Baja/Media/Alta).
+        /// </summary>
+        public string PrioridadActual { get; set; } = "N/A";
+
+        /// <summary>
+        /// Viene del ÃšLTIMO EstadoTrabajo.DescripcionOperacion.
+        /// </summary>
+        public string EstadoOperacional { get; set; } = "N/A";
+
+        /// <summary>
+        /// Viene del maquinista asociado al ÃšLTIMO EstadoTrabajo.
+        /// </summary>
+        public string MaquinistaAsignado { get; set; } = "N/A";
+
+        /// <summary>
+        /// Tiempo total de mÃ¡quina empleado en todas las operaciones terminadas.
+        /// </summary>
+        public decimal? TiempoTotalMaquina { get; set; }
     }
 }

@@ -1,92 +1,95 @@
-using Microsoft.EntityFrameworkCore;
+Ôªøusing Microsoft.EntityFrameworkCore;
 using MachineShopApi.Models;
 using System;
 
 namespace MachineShopApi.Data
 {
-    // Clase principal para la conexiÛn y configuraciÛn de la base de datos (DB Context)
+    // Clase principal con nombre de clase MachineShopContext
     public class MachineShopContext : DbContext
     {
-        // Constructor que recibe las opciones de configuraciÛn del contexto
         public MachineShopContext(DbContextOptions<MachineShopContext> options)
             : base(options)
         {
         }
 
-        // --- DefiniciÛn de Tablas (DbSet) ---
-        // Estas propiedades representan las colecciones (tablas) en la base de datos.
+        // --- Definici√≥n de Tablas (DbSet) ---
         public DbSet<Usuario> Usuarios { get; set; } = default!;
         public DbSet<Area> Areas { get; set; } = default!;
         public DbSet<Pieza> Piezas { get; set; } = default!;
         public DbSet<Solicitud> Solicitudes { get; set; } = default!;
-        public DbSet<EstadoTrabajo> EstadoTrabajos { get; set; } = default!;
-        public DbSet<Revision> Revisiones { get; set; } = default!;
-
-        public DbSet<Revision> Revision { get; set; } = default!;
+        // üö® IMPORTANTE: El nombre del DbSet DEBE coincidir con el que usas en los controladores
         public DbSet<EstadoTrabajo> EstadoTrabajo { get; set; } = default!;
+        public DbSet<Revision> Revisiones { get; set; } = default!; // Corregido: Si usas Revisiones en el controlador, debe ir aqu√≠
 
-        // ConfiguraciÛn de Modelos y Relaciones (Fluent API)
+        // Configuraci√≥n de Modelos y Relaciones (Fluent API)
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             // ====================================================================
             // RELACIONES DE SOLICITUD
             // ====================================================================
 
-            // Solicitud (Solicitante) <--> Usuario (RelaciÛn 1 a muchos: Un Usuario puede tener muchas Solicitudes, una Solicitud tiene un Solicitante)
+            // Solicitud (Solicitante) <--> Usuario (Relaci√≥n 1 a muchos)
             modelBuilder.Entity<Solicitud>()
-                .HasOne(s => s.Solicitante) // Una Solicitud tiene un Solicitante
-                .WithMany(u => u.SolicitudesRealizadas) // Un Usuario puede tener muchas SolicitudesRealizadas
-                .HasForeignKey(s => s.SolicitanteId) // Clave for·nea en Solicitud
-                .OnDelete(DeleteBehavior.Restrict); // Restringir la eliminaciÛn del Usuario si tiene Solicitudes asociadas
+                .HasOne(s => s.Solicitante)
+                .WithMany(u => u.SolicitudesRealizadas) // Asumiendo que esta propiedad existe en Usuario.cs
+                .HasForeignKey(s => s.SolicitanteId)
+                .OnDelete(DeleteBehavior.Restrict);
 
-            // Solicitud <--> Pieza (RelaciÛn 1 a muchos: Una Pieza puede estar en muchas Solicitudes, una Solicitud es para una Pieza)
+            // Solicitud <--> Pieza (Relaci√≥n 1 a muchos)
             modelBuilder.Entity<Solicitud>()
-                .HasOne(s => s.Pieza) // Una Solicitud tiene una Pieza
-                .WithMany(p => p.Solicitudes) // Una Pieza puede tener muchas Solicitudes
-                .HasForeignKey(s => s.IdPieza); // Clave for·nea en Solicitud
+                .HasOne(s => s.Pieza)
+                .WithMany(p => p.Solicitudes)
+                .HasForeignKey(s => s.IdPieza);
 
-            // Solicitud <--> EstadoTrabajo (RelaciÛn 1 a 1: Una solicitud tiene un ˙nico EstadoTrabajo)
+            // üö® CAMBIO CR√çTICO: Solicitud <--> EstadoTrabajo (Relaci√≥n 1 a MUCHOS)
             modelBuilder.Entity<Solicitud>()
-                .HasOne(s => s.EstadoTrabajo) // Una Solicitud tiene un EstadoTrabajo
-                .WithOne(e => e.Solicitud) // El EstadoTrabajo est· asociado a una Solicitud
-                .HasForeignKey<EstadoTrabajo>(e => e.IdSolicitud); // La clave for·nea est· en EstadoTrabajo
+                .HasMany(s => s.Operaciones) // Una Solicitud tiene muchos registros de EstadoTrabajo
+                .WithOne(et => et.Solicitud)
+                .HasForeignKey(et => et.IdSolicitud);
 
-            // Solicitud <--> Revision (RelaciÛn 1 a 1: Una solicitud tiene una ˙nica RevisiÛn)
+            // Solicitud <--> Revision (Relaci√≥n 1 a 1 - Se mantiene)
             modelBuilder.Entity<Solicitud>()
-                .HasOne(s => s.Revision) // Una Solicitud tiene una RevisiÛn
-                .WithOne(r => r.Solicitud) // La RevisiÛn est· asociada a una Solicitud
-                .HasForeignKey<Revision>(r => r.IdSolicitud); // La clave for·nea est· en Revision
+                .HasOne(s => s.Revision)
+                .WithOne(r => r.Solicitud)
+                .HasForeignKey<Revision>(r => r.IdSolicitud);
 
             // ====================================================================
             // OTRAS RELACIONES
             // ====================================================================
 
-            // Pieza <--> Area (RelaciÛn 1 a muchos: Un ¡rea puede tener muchas Piezas, una Pieza pertenece a un ¡rea)
-            modelBuilder.Entity<Pieza>()
-                .HasOne(p => p.Area) // Una Pieza pertenece a un ¡rea
-                .WithMany(a => a.Piezas) // Un ¡rea tiene muchas Piezas
-                .HasForeignKey(p => p.IdArea); // Clave for·nea en Pieza
-
-            // Area (ResponsableArea) <--> Usuario (RelaciÛn 1 a 1/muchos: Un Usuario puede ser Responsable de 0 o m·s ¡reas)
-            modelBuilder.Entity<Area>()
-                .HasOne(a => a.ResponsableArea) // Un ¡rea tiene un ResponsableArea
-                .WithMany() // El Usuario puede ser responsable de muchas ·reas (relaciÛn auto-descubierta)
-                .HasForeignKey(a => a.ResponsableAreaId) // Clave for·nea en Area
-                .OnDelete(DeleteBehavior.SetNull); // Si el Usuario es eliminado, el ResponsableAreaId se establece en NULL
-
-            // EstadoTrabajo (Maquinista) <--> Usuario (RelaciÛn 1 a muchos: Un Usuario puede ser Maquinista de varios EstadosTrabajo)
+            // EstadoTrabajo (Maquinista) <--> Usuario
             modelBuilder.Entity<EstadoTrabajo>()
-                .HasOne(e => e.Maquinista) // Un EstadoTrabajo tiene un Maquinista asignado
-                .WithMany() // El Maquinista puede tener muchos EstadosTrabajo (relaciÛn auto-descubierta)
-                .HasForeignKey(e => e.IdMaquinista) // Clave for·nea en EstadoTrabajo
-                .OnDelete(DeleteBehavior.Restrict); // Restringir la eliminaciÛn del Maquinista
+                .HasOne(et => et.Maquinista)
+                .WithMany()
+                .HasForeignKey(et => et.IdMaquinista)
+                .OnDelete(DeleteBehavior.Restrict);
 
-            // Revision (Revisor) <--> Usuario (RelaciÛn 1 a muchos: Un Usuario puede ser Revisor de varias Revisiones)
-            modelBuilder.Entity<Revision>()
-                .HasOne(r => r.Revisor) // Una RevisiÛn tiene un Revisor asignado
-                .WithMany() // El Revisor puede tener muchas Revisiones (relaciÛn auto-descubierta)
-                .HasForeignKey(r => r.IdRevisor) // Clave for·nea en Revision
-                .OnDelete(DeleteBehavior.Restrict); // Restringir la eliminaciÛn del Revisor
+            // Configuraci√≥n del campo decimal
+            modelBuilder.Entity<EstadoTrabajo>()
+                .Property(r => r.TiempoMaquina)
+                .HasColumnType("decimal(10, 2)");
+
+
+            // ====================================================================
+            // CONFIGURACI√ìN DE DATOS INICIALES (SEED DATA)
+            // ====================================================================
+
+            // üí° Insertar el Usuario de Sistema
+            modelBuilder.Entity<Usuario>().HasData(
+                new Usuario
+                {
+                    // üö® CORRECCI√ìN: Usamos 'Id' en lugar de 'IdUsuario' si ese es el nombre de la propiedad PK en tu modelo Usuario
+                    Id = 1,
+                    Nombre = "Revisi√≥n de Ingenier√≠a",
+                    Email = "system@molex.com",
+                    PasswordHash = "SYSTEM_RESERVED",
+                    Area = "Ingenier√≠a",
+                    Rol = "Sistema",
+                    Activo = true
+                }
+            );
+
+            // Se asumen que las dem√°s relaciones est√°n definidas en otros m√©todos o son configuraciones por convenci√≥n
 
             base.OnModelCreating(modelBuilder);
         }

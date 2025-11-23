@@ -1,15 +1,12 @@
-﻿// SolicitudesController.cs
-
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MachineShopApi.Data;
-using MachineShopApi.DTOs; // Asegúrate que aquí están tus DTOs (SolicitudDto, SolicitudCreationDto, SolicitudPendienteDto, AsignacionRevisionDto)
+using MachineShopApi.DTOs;
 using MachineShopApi.Models;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System;
-
 
 [Route("api/[controller]")]
 [ApiController]
@@ -22,7 +19,65 @@ public class SolicitudesController : ControllerBase
         _context = context;
     }
 
-    // 🚨 MÉTODO FALTANTE: GetSolicitud(int id) 🚨 (Requiere que SolicitudDto sea accesible)
+    // --- HELPER: Consulta base para mapeo a DTO de Lectura ---
+    private IQueryable<SolicitudDto> GetSolicitudDtoQuery()
+    {
+        return _context.Solicitudes
+            // Incluir las entidades relacionadas para obtener sus nombres
+            .Include(s => s.Solicitante)
+            .Include(s => s.Pieza)
+            // Incluir Revision (para la Prioridad)
+            .Include(s => s.Revision)
+            // Incluir Operaciones y al Maquinista para obtener el estado actual
+            .Include(s => s.Operaciones)
+                .ThenInclude(et => et.Maquinista)
+
+            // Proyección al DTO de Lectura
+            .Select(s => new SolicitudDto
+            {
+                Id = s.Id,
+                // Mapeo de FKs a nombres:
+                SolicitanteNombre = s.Solicitante.Nombre,
+                PiezaNombre = s.Pieza.NombrePieza,
+
+                // Datos Directos:
+                FechaYHora = s.FechaYHora,
+                Turno = s.Turno,
+                Tipo = s.Tipo,
+                Detalles = s.Detalles,
+                Dibujo = s.Dibujo,
+
+                // --- Propiedades Derivadas del Nuevo Esquema ---
+                // Prioridad actual (viene de Revision)
+                PrioridadActual = s.Revision != null ? s.Revision.Prioridad : "Pendiente de Revisión",
+
+                // Estado Operacional (Viene del ÚLTIMO registro de EstadoTrabajo)
+                EstadoOperacional = s.Operaciones
+                    .OrderByDescending(op => op.FechaYHoraDeInicio)
+                    .Select(op => op.DescripcionOperacion)
+                    .FirstOrDefault() ?? "Sin Estado Inicial",
+
+                // Maquinista Asignado (Viene del ÚLTIMO registro de EstadoTrabajo)
+                MaquinistaAsignado = s.Operaciones
+                    .OrderByDescending(op => op.FechaYHoraDeInicio)
+                    .Select(op => op.Maquinista.Nombre)
+                    .FirstOrDefault() ?? "N/A",
+
+                // 🚨 NUEVO CÁLCULO: Sumar el tiempo de máquina de todas las operaciones terminadas
+                TiempoTotalMaquina = s.Operaciones
+                    .Where(op => op.FechaYHoraDeFin.HasValue) // Solo operaciones finalizadas
+                    .Sum(op => op.TiempoMaquina)
+            });
+    }
+
+    // GET: api/Solicitudes
+    [HttpGet]
+    public async Task<ActionResult<IEnumerable<SolicitudDto>>> GetSolicitudes()
+    {
+        return await GetSolicitudDtoQuery().ToListAsync();
+    }
+
+    // GET: api/Solicitudes/5
     [HttpGet("{id}")]
     public async Task<ActionResult<SolicitudDto>> GetSolicitud(int id)
     {
@@ -37,27 +92,6 @@ public class SolicitudesController : ControllerBase
         return solicitudDto;
     }
 
-    // --- HELPER: Consulta base para mapeo a DTO de Lectura (GET /api/solicitudes) ---
-    private IQueryable<SolicitudDto> GetSolicitudDtoQuery()
-    {
-        // ... (El código de tu archivo SolicitudesController.cs)
-        // ...
-        return _context.Solicitudes
-            .Include(s => s.Solicitante)
-            .Include(s => s.Pieza)
-            .Select(s => new SolicitudDto
-            {
-                Id = s.Id,
-                SolicitanteNombre = s.Solicitante.Nombre,
-                PiezaNombre = s.Pieza.NombrePieza,
-                FechaYHora = s.FechaYHora,
-                Turno = s.Turno,
-                Tipo = s.Tipo,
-                Detalles = s.Detalles,
-                Prioridad = s.Prioridad,
-                EstadoActual = s.EstadoActual
-            });
-    }
 
     // 1. POST: api/Solicitudes - CREAR una nueva solicitud
     [HttpPost]
@@ -77,7 +111,7 @@ public class SolicitudesController : ControllerBase
             return BadRequest("El ID del Solicitante o de la Pieza proporcionado no es válido.");
         }
 
-        // 2. Mapear el DTO de Creación al Modelo
+        // 2. Mapear el DTO de Creación al Modelo (Prioridad y EstadoActual ya no existen)
         var solicitud = new Solicitud
         {
             SolicitanteId = creationDto.SolicitanteId,
@@ -85,122 +119,44 @@ public class SolicitudesController : ControllerBase
             Turno = creationDto.Turno,
             Tipo = creationDto.Tipo,
             Detalles = creationDto.Detalles,
-            Prioridad = creationDto.Prioridad,
-
-            FechaYHora = DateTime.Now,
-            EstadoActual = "Pendiente" // Estado inicial
+            Dibujo = creationDto.Dibujo ?? string.Empty,
+            FechaYHora = DateTime.Now
         };
 
+        // --- Primer SaveChanges: Obtener el IdSolicitud ---
         _context.Solicitudes.Add(solicitud);
         await _context.SaveChangesAsync();
 
-        // 3. Recuperar el DTO de Lectura para la respuesta
+
+        // 3. 💡 FLUJO DE ESTADO INICIAL: Crear el primer registro en EstadoTrabajo ("En Revisión")
+        // Usamos Id=1 (Usuario de Sistema) para el estado inicial.
+        int idMaquinistaSistema = 1;
+
+        var primerEstado = new EstadoTrabajo
+        {
+            IdSolicitud = solicitud.Id,
+            IdMaquinista = idMaquinistaSistema,
+            MaquinaAsignada = "N/A",
+
+            FechaYHoraDeInicio = DateTime.Now,
+            FechaYHoraDeFin = null,
+
+            DescripcionOperacion = "En Revisión", // El estado inicial
+            TiempoMaquina = 0,
+            Observaciones = "Solicitud creada. Pendiente de Revisión de Ingeniería."
+        };
+
+        // --- Segundo SaveChanges: Guardar el primer estado ---
+        _context.EstadoTrabajo.Add(primerEstado);
+        await _context.SaveChangesAsync();
+
+
+        // 4. Recuperar el DTO de Lectura para la respuesta
         var nuevaSolicitudDto = await GetSolicitudDtoQuery()
             .FirstOrDefaultAsync(s => s.Id == solicitud.Id);
 
-        // 🚨 CAMBIO CORREGIDO: GetSolicitud ya existe ahora 🚨
         return CreatedAtAction(nameof(GetSolicitud), new { id = nuevaSolicitudDto!.Id }, nuevaSolicitudDto);
     }
 
-    // --- NUEVO ENDPOINT: Dashboard de Pendientes ---
-    [HttpGet("pendientes")]
-    // 🚨 NOTA: Reemplazar SolicitudPendienteDto si usaste SolicitudRevisionDto localmente 🚨
-    public async Task<ActionResult<IEnumerable<SolicitudPendienteDto>>> GetSolicitudesPendientes()
-    {
-        var solicitudes = await _context.Solicitudes
-            .Where(s => s.EstadoActual == "Pendiente" || s.EstadoActual == "Asignada" || s.EstadoActual == "En proceso")
-            .Select(s => new SolicitudPendienteDto // 🚨 Asegúrate que este DTO existe y tiene las props 🚨
-            {
-                Id = s.Id,
-                Pieza = s.Pieza.NombrePieza,
-                Solicitante = s.Solicitante.Nombre,
-                Detalles = s.Detalles,
-                EstadoActual = s.EstadoActual,
-                FechaYHora = s.FechaYHora,
-                Maquina = s.Pieza.Máquina, // 🚨 CORREGIDO: Propiedad Máquina agregada a Pieza.cs 🚨
-
-                // Prioridad: Toma la de la última revisión, sino la inicial
-                Prioridad = _context.Revision // 🚨 CORREGIDO: DbSet<Revision> agregado al Contexto 🚨
-                                .Where(r => r.IdSolicitud == s.Id)
-                                .OrderByDescending(r => r.FechaRevision)
-                                .Select(r => r.NivelUrgencia)
-                                .FirstOrDefault() ?? s.Prioridad,
-
-                // AsignadoA: Busca el nombre del operador en el EstadoTrabajo más reciente
-                AsignadoA = _context.EstadoTrabajo // 🚨 CORREGIDO: DbSet<EstadoTrabajo> agregado al Contexto 🚨
-                                .Where(et => et.IdSolicitud == s.Id)
-                                .OrderByDescending(et => et.FechaYHoraInicio)
-                                .Select(et => et.Maquinista.Nombre)
-                                .FirstOrDefault(),
-
-                // Notas Ingeniería: Toma los comentarios de la última revisión
-                NotasIngenieria = _context.Revision
-                                .Where(r => r.IdSolicitud == s.Id)
-                                .OrderByDescending(r => r.FechaRevision)
-                                .Select(r => r.Comentarios)
-                                .FirstOrDefault()
-
-            })
-            .ToListAsync();
-
-        return solicitudes;
-    }
-
-    // --- NUEVO ENDPOINT: POST Revisión y Asignación ---
-    [HttpPost("asignar")]
-    public async Task<IActionResult> AsignarSolicitud([FromBody] AsignacionRevisionDto revisionDto)
-    {
-        if (!ModelState.IsValid)
-        {
-            return BadRequest(ModelState);
-        }
-
-        var solicitud = await _context.Solicitudes
-            .FirstOrDefaultAsync(s => s.Id == revisionDto.IdSolicitud);
-
-        if (solicitud == null)
-        {
-            return NotFound("Solicitud no encontrada.");
-        }
-
-        var idRevisorAutenticado = 1;
-
-        // 1. Crear registro en la tabla Revision
-        var revision = new Revision
-        {
-            IdSolicitud = revisionDto.IdSolicitud,
-            IdRevisor = idRevisorAutenticado,
-            NivelUrgencia = revisionDto.PrioridadRevisada,
-            Comentarios = revisionDto.NotasIngenieria,
-            FechaRevision = DateTime.Now, // 🚨 CORREGIDO: Propiedad FechaRevision agregada a Revision.cs 🚨
-            EstadoRevision = "Aprobada"
-        };
-        _context.Revision.Add(revision); // 🚨 CORREGIDO: DbSet<Revision> agregado al Contexto 🚨
-
-        // 2. Manejar Asignación (Estado Trabajo)
-        if (revisionDto.IdOperadorAsignado.HasValue)
-        {
-            var estadoTrabajo = new EstadoTrabajo
-            {
-                IdSolicitud = revisionDto.IdSolicitud,
-                IdMaquinista = revisionDto.IdOperadorAsignado.Value,
-                FechaYHoraInicio = DateTime.Now, // 🚨 CORREGIDO: Propiedad FechaYHoraInicio agregada a EstadoTrabajo.cs 🚨
-                EstadoActual = "Asignada",       // 🚨 CORREGIDO: Propiedad EstadoActual agregada a EstadoTrabajo.cs 🚨
-            };
-            _context.EstadoTrabajo.Add(estadoTrabajo); // 🚨 CORREGIDO: DbSet<EstadoTrabajo> agregado al Contexto 🚨
-
-            // 3. Actualizar el estado de la Solicitud principal
-            solicitud.EstadoActual = "Asignada";
-        }
-        else
-        {
-            solicitud.EstadoActual = "Pendiente (Prioridad Revisada)";
-        }
-
-        solicitud.Prioridad = revisionDto.PrioridadRevisada; // Actualiza la prioridad principal
-
-        await _context.SaveChangesAsync();
-
-        return Ok(new { message = $"Solicitud {solicitud.Id} revisada y estado actualizado." });
-    }
+    // NOTA: Otros métodos (PutSolicitud, DeleteSolicitud) deben ser revisados
 }

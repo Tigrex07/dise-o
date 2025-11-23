@@ -1,30 +1,50 @@
-using System;
+﻿using System;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace MachineShopApi.Models
 {
-    // Tabla: EstadoTrabajo
+    // Representa un registro de operación o estado en el historial de una solicitud
     public class EstadoTrabajo
     {
-        // IdEstado (PK)
         [Key]
-        public int IdEstado { get; set; }
+        [Column("IdEstado")]
+        public int Id { get; set; }
 
-        // IdSolicitud (FK)
+        // Clave Foránea a la Solicitud (Relación N:1)
         public int IdSolicitud { get; set; }
-        public Solicitud Solicitud { get; set; } = default!; // Propiedad de navegaci�n
 
-        // IdMaquinista (FK) - El usuario que toma la solicitud
-        public int? IdMaquinista { get; set; } // Puede ser nulo si est� en espera
-        public Usuario? Maquinista { get; set; }
+        // Clave Foránea al Maquinista/Operador
+        public int IdMaquinista { get; set; }
 
-        public DateTime FechaYHoraInicio { get; set; }
-        public string EstadoActual { get; set; } = string.Empty;
+        // 🚨 CAMBIO: Nombre ajustado a FechaYHoraDeInicio
+        public DateTime FechaYHoraDeInicio { get; set; }
 
-        // Campos de registro
-        public DateTime FechaHoraInicio { get; set; }
+        // 💡 NUEVO: Fecha de finalización (nullable)
+        public DateTime? FechaYHoraDeFin { get; set; }
+
+        [MaxLength(50)]
         public string MaquinaAsignada { get; set; } = string.Empty;
-        public TimeSpan? TiempoMaquina { get; set; } // Tiempo total de uso
-        public string Observaciones { get; set; } = string.Empty;
+
+        // 💡 NUEVO: Describe la operación o el estado actual ('En Revisión', 'En Fresadora 2', etc.)
+        [MaxLength(100)]
+        public string DescripcionOperacion { get; set; } = string.Empty;
+
+        [Column(TypeName = "decimal(10, 2)")]
+        public decimal TiempoMaquina { get; set; }
+
+        public string? Observaciones { get; set; }
+
+        // ===================================================
+        // Propiedades de Navegación
+        // ===================================================
+
+        // Relación N:1 con Solicitud
+        [ForeignKey("IdSolicitud")]
+        public Solicitud Solicitud { get; set; } = default!;
+
+        // Relación N:1 con Usuario (el Maquinista)
+        [ForeignKey("IdMaquinista")]
+        public Usuario Maquinista { get; set; } = default!;
     }
 }

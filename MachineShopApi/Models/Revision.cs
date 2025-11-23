@@ -1,28 +1,44 @@
-using System;
+锘縰sing System;
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace MachineShopApi.Models
 {
-    // Tabla: Revision
+    // Representa la revisi贸n de ingenier铆a sobre una solicitud
     public class Revision
     {
-        // IdRevision (PK)
         [Key]
-        public int IdRevision { get; set; }
+        [Column("IdRevision")]
+        public int Id { get; set; }
 
-        // IdSolicitud (FK)
+        // Clave For谩nea a la Solicitud (Relaci贸n 1:1)
         public int IdSolicitud { get; set; }
-        public Solicitud Solicitud { get; set; } = default!; // Propiedad de navegaci髇
 
-        // IdRevisor (FK) - El usuario que revisa y asigna prioridad
+        // Clave For谩nea al Revisor
         public int IdRevisor { get; set; }
-        public Usuario Revisor { get; set; } = default!; // Propiedad de navegaci髇
 
-        public DateTime FechaRevision { get; set; }
-        // Campos de revisi髇
-        public string NivelUrgencia { get; set; } = "Media"; // Baja / Media / Alta / Cr韙ica
-        public string EstadoRevision { get; set; } = "Pendiente"; // Aprobada / Devuelta / Requiere m醩 info
-        public string Comentarios { get; set; } = string.Empty;
+        // 馃毃 CAMBIO: NivelUrgencia renombrado a Prioridad
+        [MaxLength(20)]
+        public string Prioridad { get; set; } = string.Empty;
+
+        // 馃毃 ELIMINADA: EstadoRevision
+        // public string EstadoRevision { get; set; } = string.Empty;
+
+        public string? Comentarios { get; set; }
+
+        // 馃毃 CAMBIO: FechaHoraRevision renombrado a FechaHoraRevision
         public DateTime FechaHoraRevision { get; set; }
+
+        // ===================================================
+        // Propiedades de Navegaci贸n
+        // ===================================================
+
+        // Relaci贸n 1:1 con Solicitud
+        [ForeignKey("IdSolicitud")]
+        public Solicitud Solicitud { get; set; } = default!;
+
+        // Relaci贸n N:1 con Usuario (el Revisor)
+        [ForeignKey("IdRevisor")]
+        public Usuario Revisor { get; set; } = default!;
     }
 }
