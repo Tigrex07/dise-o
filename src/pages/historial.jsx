@@ -5,7 +5,8 @@ import dayjs from 'dayjs';
 
 export default function Historial() {
   const [searchTerm, setSearchTerm] = useState('');
-
+const [startDate, setStartDate] = useState('');
+const [endDate, setEndDate] = useState('');
   // Filtrar solo trabajos finalizados
   const trabajosCompletados = useMemo(() => {
     return MOCK_SOLICITUDES.filter(s => {
@@ -33,13 +34,20 @@ export default function Historial() {
 
   // Filtro por búsqueda
   const filtrados = useMemo(() => {
-    if (!searchTerm) return trabajosCompletados;
-    const lower = searchTerm.toLowerCase();
-    return trabajosCompletados.filter(s =>
-      s.pieza?.toLowerCase().includes(lower) ||
-      s.solicitante?.toLowerCase().includes(lower)
-    );
-  }, [searchTerm, trabajosCompletados]);
+  return trabajosCompletados.filter(s => {
+    const matchesText =
+      !searchTerm ||
+      s.pieza?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      s.solicitante?.toLowerCase().includes(searchTerm.toLowerCase());
+
+    const fechaFin = s.fechaFinalizacion ? dayjs(s.fechaFinalizacion) : null;
+    const matchesDate =
+      (!startDate || (fechaFin && fechaFin.isAfter(dayjs(startDate).startOf('day')))) &&
+      (!endDate || (fechaFin && fechaFin.isBefore(dayjs(endDate).endOf('day'))));
+
+    return matchesText && matchesDate;
+  });
+}, [searchTerm, startDate, endDate, trabajosCompletados]);
 
   return (
     <div className="space-y-8 p-6">
@@ -52,17 +60,31 @@ export default function Historial() {
         <KpiCard icon={<Clock />} label="Esta Semana" value={kpis.semana} />
       </div>
 
-      {/* Filtros */}
-      <div className="flex items-center gap-4">
-        <Search size={18} className="text-gray-400" />
-        <input
-          type="text"
-          placeholder="Buscar por pieza o solicitante..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full sm:w-80 border border-gray-300 rounded-lg px-3 py-2 text-sm shadow-sm"
-        />
-      </div>
+     {/* Filtros */}
+<div className="flex flex-wrap items-center gap-4">
+  <Search size={18} className="text-gray-400" />
+  <input
+    type="text"
+    placeholder="Buscar por pieza o solicitante..."
+    value={searchTerm}
+    onChange={(e) => setSearchTerm(e.target.value)}
+    className="w-full sm:w-80 border border-gray-300 rounded-lg px-3 py-2 text-sm shadow-sm"
+  />
+
+  {/* Filtro por fecha */}
+  <input
+    type="date"
+    value={startDate}
+    onChange={(e) => setStartDate(e.target.value)}
+    className="border border-gray-300 rounded-lg px-3 py-2 text-sm shadow-sm"
+  />
+  <input
+    type="date"
+    value={endDate}
+    onChange={(e) => setEndDate(e.target.value)}
+    className="border border-gray-300 rounded-lg px-3 py-2 text-sm shadow-sm"
+  />
+</div>
 
       {/* Tabla */}
       <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
