@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Link } from "react-router-dom";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -110,10 +111,11 @@ export default function Login() {
                   <span>Recordarme</span>
                 </label>
 
-                <button type="button" className="text-sm text-blue-600 hover:underline">
-                  ¿Olvidaste tu contraseña?
-                </button>
-              </div>
+                <Link to="/reset-password" className="text-sm text-blue-600 hover:underline">
+      ¿Olvidaste tu contraseña?
+    </Link>
+  </div>
+
 
               <div>
                 <button
