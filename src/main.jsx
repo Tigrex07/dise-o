@@ -17,6 +17,10 @@ import Revision from './pages/Revision.jsx';
 import Historial from './pages/historial';
 import Registro from './pages/Registro.jsx';
 import ResetPassword from './pages/ResetPassword.jsx';
+import Tipos from './pages/Tipos.jsx';
+import Prioridades from './pages/Prioridades.jsx';
+import Maquinas from './pages/Maquinas.jsx';
+import Areas from './pages/Areas.jsx';
 
 // 🚨 CAMBIO 1: Importar el AuthProvider 🚨
 import { AuthProvider } from './context/AuthContext'; // 👈 Ajusta la ruta si es necesario
@@ -43,6 +47,10 @@ const router = createBrowserRouter([
       { path: "configuracion", element: <Configuracion /> },
       { path: "revision", element: <Revision /> },
       { path: "historial", element: <Historial /> },
+      { path: "configuracion/tipos", element: <Tipos /> },
+{ path: "configuracion/prioridades", element: <Prioridades /> },
+{ path: "configuracion/maquinas", element: <Maquinas /> },
+{ path: "configuracion/areas", element: <Areas /> },
     ],
   },
 ]);
