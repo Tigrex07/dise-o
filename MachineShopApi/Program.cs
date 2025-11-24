@@ -2,6 +2,7 @@
 // Nota: Asegúrate de tener instalado el paquete NuGet 'Microsoft.EntityFrameworkCore.Sqlite'
 using MachineShopApi.Data;
 using Microsoft.OpenApi.Models;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -35,7 +36,13 @@ builder.Services.AddDbContext<MachineShopContext>(options =>
     options.UseSqlite(connectionString));
 
 // Añadir soporte para Controladores
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+     {
+         // Esto resuelve el error "A possible object cycle was detected"
+         options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+     });
+
 
 // Añadir Swagger/OpenAPI
 builder.Services.AddEndpointsApiExplorer();
