@@ -126,7 +126,14 @@ export default function Login() {
                   {loading ? "Cargando..." : "Iniciar sesión"}
                 </button>
               </div>
-
+<div className="text-center mt-4">
+  <span className="text-sm text-gray-600">
+    ¿No tienes cuenta aún?{" "}
+    <Link to="/registro" className="text-blue-600 hover:underline font-medium">
+      Regístrate aquí
+    </Link>
+  </span>
+</div>
               <div className="pt-2 text-xs text-gray-400">
                 Acceso autorizado exclusivamente con correo institucional.
               </div>
