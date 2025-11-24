@@ -1,6 +1,9 @@
 import React, { useState, useCallback } from 'react';
 import { Send, FileText, Component as ComponentIcon, AlertTriangle, MessageSquare, Clipboard, Upload, X, CheckSquare } from 'lucide-react';
 
+// 🚨 IMPORTAMOS EL HOOK DE AUTENTICACIÓN 🚨
+import { useAuth } from '../context/AuthContext'; // O la ruta correcta a tu AuthContext.jsx
+
 // ----------------------------------------------------------------------
 // 🚨 CONEXIÓN REAL: Importación de la URL Base del API (Preservado) 🚨
 import API_BASE_URL from '../components/apiConfig'; 
@@ -9,34 +12,28 @@ import API_BASE_URL from '../components/apiConfig';
 // DEFINICIÓN DE ENDPOINT ESPECÍFICO
 const API_SOLICITUDES_ENDPOINT = '/solicitudes';
 const API_SOLICITUDES_URL = `${API_BASE_URL}${API_SOLICITUDES_ENDPOINT}`; 
+const API_PIEZAS_ENDPOINT = `${API_BASE_URL}/piezas/nombre`; // Endpoint simulado para buscar Pieza ID
 // ----------------------------------------------------------------------
 
 // ----------------------------------------------------------------------
 // OPCIONES DEL FORMULARIO
 // ----------------------------------------------------------------------
 const AREAS_OPTIONS = ['Extrusión', 'Plásticos', 'Moldeo', 'Tool Room', 'Ensamble', 'Mantenimiento'];
-const PRIORIDAD_OPTIONS = ['Urgente', 'Alta', 'Normal', 'Baja'];
+// ❌ ELIMINADO: PRIORIDAD_OPTIONS ya no se necesita según la nueva tabla
 const TIPO_OPTIONS = ['Preventivo', 'Correctivo', 'Mejora', 'Inventario'];
 
 // ----------------------------------------------------------------------
-// 🚨 FUNCIONES HELPER PARA OBTENER IDS (PLACEHOLDERS) 🚨
-// NOTA: Estas funciones DEBEN ser reemplazadas por la lógica real de tu aplicación.
-// En un sistema real, SolicitanteId vendría del contexto de autenticación,
-// y el IdPieza se buscaría por nombre/código en tu API de Piezas.
+// 🚨 FUNCIONES HELPER PARA OBTENER IDS (ACTUALIZADO) 🚨
 // ----------------------------------------------------------------------
-
-const getSolicitanteId = (nombreSolicitante) => {
-    // Usamos el ID 1 como valor fijo para la prueba.
-    return 1; 
-};
 
 const getPiezaId = async (piezaNombre) => {
-    // Usamos el ID 1 como valor fijo para la prueba.
+    // 🚨 Lógica Simulada/Placeholder: 
+    // Siempre devuelve el ID 1 fijo para fines de prueba.
     return 1; 
 };
 
 // ----------------------------------------------------------------------
-// Componente que muestra mensajes de éxito o error.
+// Componente que muestra mensajes de éxito o error. (Se mantiene igual)
 // ----------------------------------------------------------------------
 function FeedbackMessage({ message, type, onClose }) {
     if (!message) return null;
@@ -51,7 +48,7 @@ function FeedbackMessage({ message, type, onClose }) {
             <AlertTriangle size={20} className="mt-1 mr-3 flex-shrink-0" />
             <div className="flex-grow">
                 <p className="font-semibold">{type === 'success' ? 'Éxito en el Envío' : 'Error en el Envío'}</p>
-                <p className="text-sm">{message}</p>
+                <p className="text-sm whitespace-pre-wrap">{message}</p>
             </div>
             <button
                 onClick={onClose}
@@ -68,14 +65,19 @@ function FeedbackMessage({ message, type, onClose }) {
  * Componente principal del formulario de solicitud.
  */
 export default function SolicitudForm() {
+    // 🚨 USAMOS EL CONTEXTO DE AUTENTICACIÓN 🚨
+    const { user, loading: loadingUser } = useAuth();
+    
+    // El nombre del solicitante ahora se toma del usuario cargado, si existe.
+    const solicitanteNombreDisplay = user?.nombre || 'Cargando...';
+
     const initialFormState = {
         pieza: '', 
         area: AREAS_OPTIONS[0],
         tipo: TIPO_OPTIONS[0],
-        prioridad: PRIORIDAD_OPTIONS[2],
+        // ❌ ELIMINADO: prioridad
         descripcion: '',
-        // ❌ ELIMINADO: archivoAdjunto
-        nombreSolicitante: 'Usuario Demo (ID 1234)', // Nombre para mostrar
+        dibujo: '', // Nuevo campo para la ruta/nombre del dibujo
         fechaSolicitud: new Date().toISOString().split('T')[0] // Fecha para mostrar
     };
 
@@ -83,9 +85,20 @@ export default function SolicitudForm() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [feedback, setFeedback] = useState(null);
 
+    // Deshabilitar el formulario si el usuario está cargando
+    const isFormDisabled = loadingUser || !user || !user.id;
+
     const handleChange = useCallback((e) => {
         const { name, value } = e.target;
         setFormData(prev => ({ ...prev, [name]: value }));
+    }, []);
+
+    // Función para manejar la selección de archivos
+    const handleFileChange = useCallback((e) => {
+        // En un caso real, aquí subirías el archivo y obtendrías la ruta/nombre
+        // Por ahora, solo guardamos el nombre del archivo para la simulación
+        const file = e.target.files[0];
+        setFormData(prev => ({ ...prev, dibujo: file ? file.name : '' }));
     }, []);
 
     const handleBack = () => {
@@ -99,21 +112,32 @@ export default function SolicitudForm() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setFeedback(null);
+        
+        if (isFormDisabled) {
+            setFeedback({ message: "No se puede enviar la solicitud. La información del usuario no se ha cargado correctamente.", type: 'error' });
+            return;
+        }
+
         setIsSubmitting(true);
         
         try {
             // 1. Obtener los IDs numéricos requeridos por el backend
-            const solicitanteId = getSolicitanteId(formData.nombreSolicitante);
+            const solicitanteId = user.id; 
             const idPieza = await getPiezaId(formData.pieza); 
+            // Fecha y hora actual en formato ISO para el campo DATETIME
+            const fechaYHora = new Date().toISOString(); 
 
-            // 2. Crear el objeto JSON (payload) que coincide con SolicitudCreationDto.cs
+            // 2. Crear el objeto JSON (payload) que coincide con la nueva tabla de BD
             const payload = {
-                SolicitanteId: solicitanteId,
+                // 🚨 Actualizado según la nueva estructura de la tabla 🚨
+                Solicitante: solicitanteId, // Debe coincidir con el campo Solicitante de la BD
                 IdPieza: idPieza,
-                Turno: 'Turno Fijo', // Valor fijo o tomarlo de un campo de formulario
+                FechaYHora: fechaYHora, // Nuevo campo de fecha/hora
+                Turno: 'Turno Fijo', // Valor fijo o tomarlo de un campo
                 Tipo: formData.tipo,
                 Detalles: formData.descripcion,
-                Prioridad: formData.prioridad,
+                Dibujo: formData.dibujo || null, // Ruta o nombre del archivo
+                // ❌ Eliminados: Prioridad
             };
 
             console.log(`Enviando POST JSON a: ${API_SOLICITUDES_URL}`);
@@ -124,33 +148,44 @@ export default function SolicitudForm() {
                 // 🚨 CRUCIAL: Definir Content-Type para enviar JSON 🚨
                 headers: {
                     'Content-Type': 'application/json',
+                    // Incluye token si es necesario para tu API
+                    // 'Authorization': `Bearer ${localStorage.getItem('authToken')}`, 
                 },
-                body: JSON.stringify(payload), // Convierte el objeto a string JSON
+                body: JSON.stringify(payload), 
             });
 
             if (!response.ok) {
-                 const errorBody = await response.text();
-                 let errorMessage = `Error ${response.status}: Falló la creación de la solicitud.`;
-                 
-                 // Intentar parsear el error para un mejor mensaje
-                 try {
-                     const errorJson = JSON.parse(errorBody);
-                     // ASP.NET Core puede devolver errores en diferentes formatos (detail, errors, title)
-                     errorMessage = errorJson.errors ? JSON.stringify(errorJson.errors) : (errorJson.detail || errorJson.title || errorJson.message || errorMessage);
-                 } catch {
-                     errorMessage = `${errorMessage} Mensaje del API: ${errorBody.substring(0, 50)}...`;
-                 }
-                 throw new Error(errorMessage);
+                const errorBody = await response.text();
+                let errorMessage = `Error ${response.status}: Falló la creación de la solicitud.`;
+                
+                // 🚨 Manejo de errores mejorado 🚨
+                try {
+                    const errorJson = JSON.parse(errorBody);
+                    // Captura errores de validación de modelos (ASP.NET Core)
+                    if (errorJson.errors) {
+                        const validationErrors = Object.entries(errorJson.errors)
+                            .map(([key, value]) => `${key}: ${value.join(', ')}`)
+                            .join('\n- ');
+                        errorMessage = `Errores de validación de la API:\n- ${validationErrors}`;
+                    } else {
+                        errorMessage = errorJson.detail || errorJson.title || errorJson.message || errorMessage;
+                    }
+                } catch {
+                    // Si no es JSON, muestra el texto crudo del error.
+                    errorMessage = `${errorMessage} (Respuesta del servidor: ${errorBody.substring(0, 100)}...)`;
+                }
+                throw new Error(errorMessage);
             }
 
-            const result = await response.json();
+            // Si es exitoso
+            const result = response.status === 204 ? { id: 'Creada' } : await response.json();
             
             setFeedback({
                 message: `Solicitud enviada exitosamente. ID asignado: ${result.id || 'N/A'}`,
                 type: 'success'
             });
 
-            // Resetea el formulario
+            // Resetea los campos variables del formulario
             setFormData(initialFormState);
 
         } catch (error) {
@@ -181,10 +216,12 @@ export default function SolicitudForm() {
 
             <form onSubmit={handleSubmit}>
                 {/* Metadatos (Campos de solo lectura para contexto) */}
-                <div className="grid grid-cols-2 gap-4 mb-6 p-4 bg-gray-50 rounded-lg">
+                <div className="grid grid-cols-2 gap-4 mb-6 p-4 bg-indigo-50 rounded-lg border-l-4 border-indigo-400">
                     <div>
-                        <label className="block text-xs font-medium text-gray-500">Solicitante</label>
-                        <p className="mt-1 text-sm font-semibold text-gray-700">{formData.nombreSolicitante}</p>
+                        <label className="block text-xs font-medium text-gray-500">Solicitante (ID: {user?.id || 'Cargando...'})</label>
+                        <p className="mt-1 text-sm font-bold text-indigo-800">
+                            {loadingUser ? 'Cargando usuario...' : solicitanteNombreDisplay}
+                        </p>
                     </div>
                     <div>
                         <label className="block text-xs font-medium text-gray-500">Fecha de Creación</label>
@@ -192,91 +229,112 @@ export default function SolicitudForm() {
                     </div>
                 </div>
 
+                {isFormDisabled && !loadingUser && (
+                    <div className="p-4 mb-6 bg-red-100 border-l-4 border-red-500 text-red-700 rounded-lg">
+                        <AlertTriangle size={18} className="inline mr-2" />
+                        **Atención:** No se pudo cargar la información del usuario logueado. El formulario está deshabilitado.
+                    </div>
+                )}
+
                 {/* Campos Principales */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="col-span-1">
-                        <label htmlFor="pieza" className="block text-sm font-medium text-gray-700 mb-1">ID o Nombre de Pieza/Molde <span className="text-red-500">*</span></label>
-                        <div className="mt-1 relative">
-                            <input
-                                type="text"
-                                name="pieza"
-                                id="pieza"
-                                value={formData.pieza}
+                <fieldset disabled={isFormDisabled} className="grid grid-cols-1 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* Pieza */}
+                        <div className="col-span-1">
+                            <label htmlFor="pieza" className="block text-sm font-medium text-gray-700 mb-1">ID o Nombre de Pieza/Molde <span className="text-red-500">*</span></label>
+                            <div className="mt-1 relative">
+                                <input
+                                    type="text"
+                                    name="pieza"
+                                    id="pieza"
+                                    value={formData.pieza}
+                                    onChange={handleChange}
+                                    required
+                                    className="block w-full border border-gray-300 rounded-lg shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100"
+                                    placeholder="Ej: PZA-45A o Molde #102"
+                                />
+                                <Clipboard size={18} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                            </div>
+                        </div>
+
+                        {/* Área (Se mantiene para la UI, aunque no se envíe) */}
+                        <div className="col-span-1">
+                            <label htmlFor="area" className="block text-sm font-medium text-gray-700 mb-1">Área o Departamento <span className="text-red-500">*</span></label>
+                            <select
+                                name="area"
+                                id="area"
+                                value={formData.area}
                                 onChange={handleChange}
                                 required
-                                className="block w-full border border-gray-300 rounded-lg shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500"
-                                placeholder="Ej: PZA-45A o Molde #102"
-                            />
-                            <Clipboard size={18} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                                className="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 bg-white disabled:bg-gray-100"
+                            >
+                                {AREAS_OPTIONS.map(area => (
+                                    <option key={area} value={area}>{area}</option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Tipo de Solicitud */}
+                        <div className="col-span-1">
+                            <label htmlFor="tipo" className="block text-sm font-medium text-gray-700 mb-1">Tipo de Solicitud</label>
+                            <select
+                                name="tipo"
+                                id="tipo"
+                                value={formData.tipo}
+                                onChange={handleChange}
+                                className="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 bg-white disabled:bg-gray-100"
+                            >
+                                {TIPO_OPTIONS.map(tipo => (
+                                    <option key={tipo} value={tipo}>{tipo}</option>
+                                ))}
+                            </select>
+                        </div>
+                        
+                        {/* ❌ ELIMINADO: Prioridad (ya no existe en la BD) */}
+                        {/* Se agrega el campo Dibujo en su lugar */}
+                        <div className="col-span-1">
+                            <label htmlFor="dibujo" className="block text-sm font-medium text-gray-700 mb-1">Dibujo/Archivo Adjunto (Opcional)</label>
+                            <div className="mt-1 flex items-center">
+                                <input
+                                    type="file"
+                                    name="dibujo"
+                                    id="dibujo"
+                                    onChange={handleFileChange}
+                                    className="block w-full text-sm text-gray-500
+                                               file:mr-4 file:py-2 file:px-4
+                                               file:rounded-lg file:border-0
+                                               file:text-sm file:font-semibold
+                                               file:bg-indigo-50 file:text-indigo-700
+                                               hover:file:bg-indigo-100 disabled:bg-gray-100"
+                                />
+                                {formData.dibujo && (
+                                    <span className="text-xs text-green-600 ml-2 flex items-center">
+                                        <CheckSquare size={14} className="mr-1" /> Adjunto: {formData.dibujo.substring(0, 15)}...
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                        
+                    </div>
+
+                    {/* Descripción Detallada */}
+                    <div className="mt-0">
+                        <label htmlFor="descripcion" className="block text-sm font-medium text-gray-700 mb-1">Descripción del Problema/Necesidad <span className="text-red-500">*</span></label>
+                        <div className="mt-1 relative">
+                            <textarea
+                                id="descripcion"
+                                name="descripcion"
+                                rows="4"
+                                value={formData.descripcion}
+                                onChange={handleChange}
+                                required
+                                className="block w-full border border-gray-300 rounded-lg shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 resize-none disabled:bg-gray-100"
+                                placeholder="Describe el problema, el impacto y las acciones inmediatas tomadas."
+                            ></textarea>
+                            <MessageSquare size={18} className="absolute right-3 top-3 text-gray-400" />
                         </div>
                     </div>
-
-                    <div className="col-span-1">
-                        <label htmlFor="area" className="block text-sm font-medium text-gray-700 mb-1">Área o Departamento <span className="text-red-500">*</span></label>
-                        <select
-                            name="area"
-                            id="area"
-                            value={formData.area}
-                            onChange={handleChange}
-                            required
-                            className="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
-                        >
-                            {AREAS_OPTIONS.map(area => (
-                                <option key={area} value={area}>{area}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div className="col-span-1">
-                        <label htmlFor="tipo" className="block text-sm font-medium text-gray-700 mb-1">Tipo de Solicitud</label>
-                        <select
-                            name="tipo"
-                            id="tipo"
-                            value={formData.tipo}
-                            onChange={handleChange}
-                            className="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
-                        >
-                            {TIPO_OPTIONS.map(tipo => (
-                                <option key={tipo} value={tipo}>{tipo}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div className="col-span-1">
-                        <label htmlFor="prioridad" className="block text-sm font-medium text-gray-700 mb-1">Prioridad Asignada</label>
-                        <select
-                            name="prioridad"
-                            id="prioridad"
-                            value={formData.prioridad}
-                            onChange={handleChange}
-                            className="mt-1 block w-full border border-gray-300 rounded-lg shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
-                        >
-                            {PRIORIDAD_OPTIONS.map(prioridad => (
-                                <option key={prioridad} value={prioridad}>{prioridad}</option>
-                            ))}
-                        </select>
-                    </div>
-                </div>
-
-                {/* Descripción Detallada */}
-                <div className="mt-6">
-                    <label htmlFor="descripcion" className="block text-sm font-medium text-gray-700 mb-1">Descripción del Problema/Necesidad <span className="text-red-500">*</span></label>
-                    <div className="mt-1 relative">
-                        <textarea
-                            id="descripcion"
-                            name="descripcion"
-                            rows="4"
-                            value={formData.descripcion}
-                            onChange={handleChange}
-                            required
-                            className="block w-full border border-gray-300 rounded-lg shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
-                            placeholder="Describe el problema, el impacto y las acciones inmediatas tomadas."
-                        ></textarea>
-                        <MessageSquare size={18} className="absolute right-3 top-3 text-gray-400" />
-                    </div>
-                </div>
-
-                {/* ❌ ELIMINADO: Se removió el bloque de Adjuntar Archivos */}
+                </fieldset>
 
                 {/* Mensaje de Feedback (Éxito/Error) */}
                 <FeedbackMessage 
@@ -290,16 +348,17 @@ export default function SolicitudForm() {
                     <button
                         type="button"
                         onClick={handleBack}
-                        className="flex items-center px-6 py-3 font-semibold rounded-xl shadow-md transition duration-200 text-gray-700 bg-gray-200 hover:bg-gray-300"
+                        disabled={isSubmitting || isFormDisabled}
+                        className="flex items-center px-6 py-3 font-semibold rounded-xl shadow-md transition duration-200 text-gray-700 bg-gray-200 hover:bg-gray-300 disabled:opacity-50"
                     >
                         <X size={20} className="mr-2" />
                         Cancelar
                     </button>
                     <button
                         type="submit"
-                        disabled={isSubmitting}
+                        disabled={isSubmitting || isFormDisabled || !formData.pieza || !formData.descripcion}
                         className={`flex items-center px-6 py-3 font-semibold rounded-xl shadow-lg transition duration-200 ${
-                            isSubmitting 
+                            (isSubmitting || isFormDisabled || !formData.pieza || !formData.descripcion)
                                 ? 'bg-indigo-400 cursor-not-allowed' 
                                 : 'bg-indigo-600 hover:bg-indigo-700 text-white transform hover:scale-[1.02]'
                         }`}
