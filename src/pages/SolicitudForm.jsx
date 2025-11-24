@@ -1,39 +1,45 @@
 import React, { useState, useCallback } from 'react';
 import { Send, FileText, Component as ComponentIcon, AlertTriangle, MessageSquare, Clipboard, Upload, X, CheckSquare } from 'lucide-react';
 
-// 🚨 IMPORTAMOS EL HOOK DE AUTENTICACIÓN 🚨
-import { useAuth } from '../context/AuthContext'; // O la ruta correcta a tu AuthContext.jsx
+// ======================================================================
+// 🚨 ZONA DE MOCKING Y FIX DE IMPORTACIÓN (AJUSTADO A ID=1) 🚨
+// ======================================================================
 
+// --- MOCK TEMPORAL DE AUTENTICACIÓN ---
+// Fija el Solicitante ID a 1, según tu requerimiento.
+const useAuth = () => ({
+    user: { id: 1, nombre: 'Usuario Fijo ID 1' }, 
+    loading: false
+});
+
+// --- MOCK DE CONFIGURACIÓN API (Asegúrate que esta URL sea correcta) ---
+// Si usas una importación real, puedes comentar estas líneas y descomentar tus imports originales.
+const API_BASE_URL = 'http://localhost:5145/api'; 
 // ----------------------------------------------------------------------
-// 🚨 CONEXIÓN REAL: Importación de la URL Base del API (Preservado) 🚨
-import API_BASE_URL from '../components/apiConfig'; 
+
+// --- FUNCIÓN HELPER PARA OBTENER ID DE PIEZA (MOCK) ---
+// Fija el IdPieza a 1, según tu requerimiento.
+const getPiezaId = async (piezaNombre) => {
+    console.log(`[MOCK] Pieza solicitada: '${piezaNombre}'. Devolviendo ID fijo: 1.`);
+    return 1; 
+};
+
+// ======================================================================
 
 // ----------------------------------------------------------------------
 // DEFINICIÓN DE ENDPOINT ESPECÍFICO
 const API_SOLICITUDES_ENDPOINT = '/solicitudes';
 const API_SOLICITUDES_URL = `${API_BASE_URL}${API_SOLICITUDES_ENDPOINT}`; 
-const API_PIEZAS_ENDPOINT = `${API_BASE_URL}/piezas/nombre`; // Endpoint simulado para buscar Pieza ID
 // ----------------------------------------------------------------------
 
 // ----------------------------------------------------------------------
 // OPCIONES DEL FORMULARIO
 // ----------------------------------------------------------------------
 const AREAS_OPTIONS = ['Extrusión', 'Plásticos', 'Moldeo', 'Tool Room', 'Ensamble', 'Mantenimiento'];
-// ❌ ELIMINADO: PRIORIDAD_OPTIONS ya no se necesita según la nueva tabla
 const TIPO_OPTIONS = ['Preventivo', 'Correctivo', 'Mejora', 'Inventario'];
 
 // ----------------------------------------------------------------------
-// 🚨 FUNCIONES HELPER PARA OBTENER IDS (ACTUALIZADO) 🚨
-// ----------------------------------------------------------------------
-
-const getPiezaId = async (piezaNombre) => {
-    // 🚨 Lógica Simulada/Placeholder: 
-    // Siempre devuelve el ID 1 fijo para fines de prueba.
-    return 1; 
-};
-
-// ----------------------------------------------------------------------
-// Componente que muestra mensajes de éxito o error. (Se mantiene igual)
+// Componente que muestra mensajes de éxito o error.
 // ----------------------------------------------------------------------
 function FeedbackMessage({ message, type, onClose }) {
     if (!message) return null;
@@ -65,7 +71,7 @@ function FeedbackMessage({ message, type, onClose }) {
  * Componente principal del formulario de solicitud.
  */
 export default function SolicitudForm() {
-    // 🚨 USAMOS EL CONTEXTO DE AUTENTICACIÓN 🚨
+    // 🚨 USAMOS EL CONTEXTO DE AUTENTICACIÓN (Ahora mockeado con ID: 1) 🚨
     const { user, loading: loadingUser } = useAuth();
     
     // El nombre del solicitante ahora se toma del usuario cargado, si existe.
@@ -75,17 +81,16 @@ export default function SolicitudForm() {
         pieza: '', 
         area: AREAS_OPTIONS[0],
         tipo: TIPO_OPTIONS[0],
-        // ❌ ELIMINADO: prioridad
         descripcion: '',
-        dibujo: '', // Nuevo campo para la ruta/nombre del dibujo
-        fechaSolicitud: new Date().toISOString().split('T')[0] // Fecha para mostrar
+        dibujo: '', 
+        fechaSolicitud: new Date().toISOString().split('T')[0] 
     };
 
     const [formData, setFormData] = useState(initialFormState);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [feedback, setFeedback] = useState(null);
 
-    // Deshabilitar el formulario si el usuario está cargando
+    // Deshabilitar el formulario si el usuario está cargando o no tiene un ID válido
     const isFormDisabled = loadingUser || !user || !user.id;
 
     const handleChange = useCallback((e) => {
@@ -95,8 +100,6 @@ export default function SolicitudForm() {
 
     // Función para manejar la selección de archivos
     const handleFileChange = useCallback((e) => {
-        // En un caso real, aquí subirías el archivo y obtendrías la ruta/nombre
-        // Por ahora, solo guardamos el nombre del archivo para la simulación
         const file = e.target.files[0];
         setFormData(prev => ({ ...prev, dibujo: file ? file.name : '' }));
     }, []);
@@ -122,22 +125,22 @@ export default function SolicitudForm() {
         
         try {
             // 1. Obtener los IDs numéricos requeridos por el backend
-            const solicitanteId = user.id; 
-            const idPieza = await getPiezaId(formData.pieza); 
+            // Ambos IDs están fijos a 1, según tu requerimiento.
+            const solicitanteId = user.id; // Siempre será 1 debido al mock de useAuth
+            const idPieza = await getPiezaId(formData.pieza); // Siempre será 1 debido al mock de getPiezaId
             // Fecha y hora actual en formato ISO para el campo DATETIME
             const fechaYHora = new Date().toISOString(); 
 
-            // 2. Crear el objeto JSON (payload) que coincide con la nueva tabla de BD
+            // 2. Crear el objeto JSON (payload)
+            // Se usa Turno: "Mañana" como valor de ejemplo, ya que no tienes un campo de turno en el formulario.
             const payload = {
-                // 🚨 Actualizado según la nueva estructura de la tabla 🚨
-                Solicitante: solicitanteId, // Debe coincidir con el campo Solicitante de la BD
-                IdPieza: idPieza,
-                FechaYHora: fechaYHora, // Nuevo campo de fecha/hora
-                Turno: 'Turno Fijo', // Valor fijo o tomarlo de un campo
+                SolicitanteId: solicitanteId, // ✅ CORREGIDO: Usamos SolicitanteId para que haga match con el DTO de C#
+                IdPieza: idPieza,           
+                FechaYHora: fechaYHora, 
+                Turno: 'Mañana', // Fijo como ejemplo, puedes cambiarlo si tienes un campo de turno
                 Tipo: formData.tipo,
                 Detalles: formData.descripcion,
-                Dibujo: formData.dibujo || null, // Ruta o nombre del archivo
-                // ❌ Eliminados: Prioridad
+                Dibujo: formData.dibujo || null, 
             };
 
             console.log(`Enviando POST JSON a: ${API_SOLICITUDES_URL}`);
@@ -145,11 +148,8 @@ export default function SolicitudForm() {
             
             const response = await fetch(API_SOLICITUDES_URL, {
                 method: 'POST',
-                // 🚨 CRUCIAL: Definir Content-Type para enviar JSON 🚨
                 headers: {
                     'Content-Type': 'application/json',
-                    // Incluye token si es necesario para tu API
-                    // 'Authorization': `Bearer ${localStorage.getItem('authToken')}`, 
                 },
                 body: JSON.stringify(payload), 
             });
@@ -158,10 +158,8 @@ export default function SolicitudForm() {
                 const errorBody = await response.text();
                 let errorMessage = `Error ${response.status}: Falló la creación de la solicitud.`;
                 
-                // 🚨 Manejo de errores mejorado 🚨
                 try {
                     const errorJson = JSON.parse(errorBody);
-                    // Captura errores de validación de modelos (ASP.NET Core)
                     if (errorJson.errors) {
                         const validationErrors = Object.entries(errorJson.errors)
                             .map(([key, value]) => `${key}: ${value.join(', ')}`)
@@ -171,7 +169,6 @@ export default function SolicitudForm() {
                         errorMessage = errorJson.detail || errorJson.title || errorJson.message || errorMessage;
                     }
                 } catch {
-                    // Si no es JSON, muestra el texto crudo del error.
                     errorMessage = `${errorMessage} (Respuesta del servidor: ${errorBody.substring(0, 100)}...)`;
                 }
                 throw new Error(errorMessage);
@@ -181,7 +178,7 @@ export default function SolicitudForm() {
             const result = response.status === 204 ? { id: 'Creada' } : await response.json();
             
             setFeedback({
-                message: `Solicitud enviada exitosamente. ID asignado: ${result.id || 'N/A'}`,
+                message: `Solicitud enviada exitosamente. ID asignado: ${result.id || 'N/A'}\nIDs Usados: Solicitante ID: ${solicitanteId}, Pieza ID: ${idPieza}`,
                 type: 'success'
             });
 
@@ -255,6 +252,7 @@ export default function SolicitudForm() {
                                 />
                                 <Clipboard size={18} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
                             </div>
+                            <p className="text-xs text-gray-500 mt-1">**Nota:** Solicitante ID y Pieza ID se envían fijos como **1**.</p>
                         </div>
 
                         {/* Área (Se mantiene para la UI, aunque no se envíe) */}
@@ -290,7 +288,6 @@ export default function SolicitudForm() {
                             </select>
                         </div>
                         
-                        {/* ❌ ELIMINADO: Prioridad (ya no existe en la BD) */}
                         {/* Se agrega el campo Dibujo en su lugar */}
                         <div className="col-span-1">
                             <label htmlFor="dibujo" className="block text-sm font-medium text-gray-700 mb-1">Dibujo/Archivo Adjunto (Opcional)</label>
