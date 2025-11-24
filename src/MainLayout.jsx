@@ -1,6 +1,6 @@
 import React from 'react';
 import { Outlet, useLocation, Link } from 'react-router-dom';
-import { Home, AlertTriangle, Settings, Users, Factory, Tally5, UserCheck } from "lucide-react";
+import { Home, AlertTriangle, Settings, Users, Factory, Tally5, UserCheck, UserCog, Shield, Clock } from "lucide-react";
 import NotificacionesPanel from './components/NotificacionesPanel'; // Asegúrate de que la ruta sea correcta
 import { Archive, History, PackageCheck } from 'lucide-react';
 
@@ -41,14 +41,15 @@ export default function MainLayout() {
 />
 
 <SidebarItem
-  icon={<Archive size={18} />}
+  icon={<Clock size={18} />}
   label="Historial"
   to="/historial"
   currentPath={location.pathname}
 />
 
           <SidebarItem icon={<Tally5 size={18} />} label="Mi Trabajo (Maquinista)" to="/trabajo/mis-asignaciones" currentPath={location.pathname} />
-          <SidebarItem icon={<AlertTriangle size={18} />} label="Login Demo" to="/login" currentPath={location.pathname} />
+          <SidebarItem icon={<Shield size={18} />} label="Login Demo" to="/login" currentPath={location.pathname} />
+          <SidebarItem icon={<UserCog size={18} />} label="Registro" to="/registro" currentPath={location.pathname} />
           <div className="pt-4 mt-4 border-t border-gray-700">
             <SidebarItem icon={<AlertTriangle size={18} />} label="Reportes" to="/reportes" currentPath={location.pathname} />
             <SidebarItem icon={<Users size={18} />} label="Usuarios" to="/usuarios" currentPath={location.pathname} />

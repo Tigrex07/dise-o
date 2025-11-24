@@ -15,12 +15,13 @@ import Login from './pages/Login.jsx';
 import Configuracion from './pages/Configuracion.jsx';
 import Revision from './pages/Revision.jsx';
 import Historial from './pages/historial';
-
+import Registro from './pages/Registro.jsx';
 // 🚨 CAMBIO 1: Importar el AuthProvider 🚨
 import { AuthProvider } from './context/AuthContext'; // 👈 AJUSTA LA RUTA SI ES NECESARIO
 
 // 2. Importa el CSS global
 import './index.css';
+
 
 // 3. Define las rutas de la aplicación (Se mantiene igual)
 const router = createBrowserRouter([
@@ -65,7 +66,9 @@ const router = createBrowserRouter([
         element: <Configuracion />,
       },
       { path: "revision", element: <Revision /> },
-      { path: 'historial', element: <Historial /> }
+      { path: 'historial', element: <Historial /> },
+{ path: 'registro', element: <Registro /> }
+      
     ],
   },
 ]);
