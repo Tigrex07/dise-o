@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, Tag, AlertTriangle, Factory, Code } from 'lucide-react';
+import { Settings, Tag, AlertTriangle, Factory, Code, Package } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export default function Configuracion() {
@@ -52,6 +52,15 @@ export default function Configuracion() {
           description="Gestiona los nombres de los departamentos que pueden generar o recibir solicitudes."
           buttonText="Administrar Áreas"
           onClick={() => navigate("/configuracion/areas")}
+        />
+
+        {/* Piezas */}
+        <ConfigCard 
+          icon={<Package size={24} />}
+          title="Catálogo de Piezas"
+          description="Administra las piezas asociadas a cada área y máquina del sistema."
+          buttonText="Administrar Piezas"
+          onClick={() => navigate("/configuracion/piezas")}
         />
 
       </div>

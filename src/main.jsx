@@ -22,6 +22,7 @@ import Prioridades from './pages/Prioridades.jsx';
 import Maquinas from './pages/Maquinas.jsx';
 import Areas from './pages/Areas.jsx';
 import Notificaciones from './pages/Notificaciones.jsx';
+import Piezas from './pages/Piezas.jsx';
 
 // 🚨 CAMBIO 1: Importar el AuthProvider 🚨
 import { AuthProvider } from './context/AuthContext'; // 👈 Ajusta la ruta si es necesario
@@ -54,6 +55,8 @@ const router = createBrowserRouter([
 { path: "configuracion/areas", element: <Areas /> },
 { path: "notificaciones", element: <Notificaciones /> },
 { path: "notificaciones", element: <Notificaciones /> },
+{ path: "configuracion/piezas", element: <Piezas /> },
+
     ],
   },
 ]);
