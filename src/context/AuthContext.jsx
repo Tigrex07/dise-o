@@ -2,106 +2,103 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 // La URL Base se mantiene por si se necesita para el envío POST
 import API_BASE_URL from '../components/apiConfig'; 
 
-// URL base para obtener los datos del usuario después del login
-const API_USER_DATA_URL = `${API_BASE_URL}/api/usuarios/me`; 
+// 🚨 ID FIJO PARA SIMULACIÓN: Modifique este valor para cambiar el usuario de prueba.
+const FIXED_USER_ID = 3; 
 
 // 1. Crear el Contexto
 const AuthContext = createContext(null);
 
-// Lógica auxiliar de conexión API (Mantengo la estructura para futuros usos)
-const apiFetcher = async (url, token) => {
-    // ... (cuerpo de la función fetcher se mantiene igual)
-    const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-        },
-    });
+// 2. Endpoint para obtener datos del usuario por ID (Asumiendo GET /Usuarios/{id})
+// Usando la convención corregida de URLs (API_BASE_URL ya contiene el /api)
+const API_USER_BY_ID_URL = `${API_BASE_URL}/Usuarios/${FIXED_USER_ID}`; 
 
-    if (response.status === 401 || response.status === 403) {
-        throw new Error('Token inválido o expirado. Sesión no autorizada.');
-    }
-    
-    if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Error desconocido del servidor.' }));
-        throw new Error(`Fallo en la consulta de datos del usuario: ${response.status} - ${errorData.message || response.statusText}`);
-    }
-
-    return response.json();
-};
-
-// --------------------------------------------------------------------------
-// DEFINICIÓN DE CONTEXTO Y HOOK
-// --------------------------------------------------------------------------
-
-export const useAuth = () => {
-    const context = useContext(AuthContext);
-    if (!context) {
-        throw new Error('useAuth debe ser usado dentro de un AuthProvider');
-    }
-    return context;
-};
-
-// Objeto por defecto para el usuario (si no hay sesión)
+// Definición del estado de usuario por defecto
 const defaultUser = {
     id: null,
-    nombre: 'Invitado', 
-    rol: 'OPERADOR', 
-    area: null,
+    nombre: 'Invitado',
+    rol: 'GUEST',
+    area: null
 };
 
+// Hook principal que proporciona el contexto
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(defaultUser);
     const [loading, setLoading] = useState(true);
-    const isAuthenticated = user && user.id !== null;
 
+    // El usuario está autenticado si tiene un ID
+    const isAuthenticated = user.id !== null;
+
+    // --------------------------------------------------------------------------
+    // 3. LÓGICA DE SIMULACIÓN DE LOGIN (useEffect)
+    // --------------------------------------------------------------------------
     useEffect(() => {
-        const token = localStorage.getItem('authToken');
+        const loadFixedUser = async () => {
+            setLoading(true);
+            try {
+                // ⚠️ Nota: Si su API exige un token incluso para esta prueba, 
+                // deberá añadir un token de prueba fijo en el header.
+                const response = await fetch(API_USER_BY_ID_URL, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        // Si se necesita token, descomentar: 'Authorization': `Bearer TU_TOKEN_FIJO`,
+                    },
+                });
 
-        if (token) {
-            const loadUser = async () => {
-                try {
-                    const data = await apiFetcher(API_USER_DATA_URL, token);
-                    
-                    setUser({ 
-                        id: data.IdUsuario, 
-                        nombre: data.Nombre, 
-                        rol: data.Rol,
-                        area: data.Area || null 
-                    });
-                    
-                } catch (error) {
-                    console.error('Fallo la validación del token:', error.message);
-                    // Si el token falla, usamos el usuario de prueba
-                    setUser({ id: 1, nombre: 'Usuario Fijo (ID 1)', rol: 'TEST', area: 'Pruebas' });
-                } finally {
-                    setLoading(false);
+                if (!response.ok) {
+                    const errorMsg = `Fallo al obtener el usuario ID ${FIXED_USER_ID}: ${response.status}`;
+                    console.error(errorMsg);
+                    throw new Error(errorMsg);
                 }
-            };
-            loadUser();
-        } else {
-            // 🚨 CAMBIO AQUÍ: Si NO hay token, forzamos el ID 1 para fines de prueba 🚨
-            setUser({ id: 1, nombre: 'Usuario Fijo (ID 1)', rol: 'TEST', area: 'Pruebas' });
-            setLoading(false); 
-        }
-    }, []);
 
-    // ... (handleLogin y handleLogout se mantienen igual)
-    const handleLogin = (userData, authToken) => {
-        localStorage.setItem('authToken', authToken); 
-        setUser(userData); 
+                const data = await response.json();
+
+                // 4. Mapear el DTO de la API (Asumiendo propiedades como 'id' o 'idUsuario')
+                setUser({
+                    // Usamos el ID del backend, o el ID fijo como fallback
+                    id: data.idUsuario || data.id || FIXED_USER_ID, 
+                    nombre: data.nombre, 
+                    rol: data.rol,
+                    area: data.area || null // El área podría ser nula
+                });
+                
+                console.log(`Simulación de login exitosa: Usuario ID ${FIXED_USER_ID} cargado.`);
+
+            } catch (error) {
+                console.error('Error al simular login con ID fijo, usando datos de emergencia:', error.message);
+                // Fallback: Si la API falla, usar un usuario de prueba en el frontend
+                setUser({ 
+                    id: FIXED_USER_ID, 
+                    nombre: 'Usuario DEBUG', 
+                    rol: 'DEBUG', 
+                    area: 'DEBUG' 
+                });
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        loadFixedUser();
+        
+    }, []); // Se ejecuta solo una vez al montar
+
+    // Se mantienen los stubs de login/logout para evitar errores en otros componentes.
+    const handleLogin = () => {
+        console.warn("handleLogin deshabilitado: Usando ID fijo 1 para pruebas.");
     };
 
     const handleLogout = () => {
         localStorage.removeItem('authToken');
         setUser(defaultUser);
+        console.log("Sesión cerrada. El contexto regresa al estado inicial.");
     };
 
     const contextValue = {
         user,
         isAuthenticated,
         loading,
+        // Exponemos el ID fijo por si se necesita en algún componente
+        FIXED_USER_ID, 
         login: handleLogin,
         logout: handleLogout,
     };
@@ -111,4 +108,10 @@ export const AuthProvider = ({ children }) => {
             {children}
         </AuthContext.Provider>
     );
+};
+
+// Hook personalizado para usar el contexto
+export const useAuth = () => {
+    // 5. Usar useContext en los componentes
+    return useContext(AuthContext);
 };

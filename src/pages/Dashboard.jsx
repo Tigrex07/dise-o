@@ -1,351 +1,432 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { PlusCircle, Edit, Trash2, Search } from "lucide-react";
+import { PlusCircle, Eye, Search, Filter, Download, Component as ComponentIcon } from "lucide-react"; 
 import { useNavigate } from "react-router-dom";
-import { MOCK_SOLICITUDES } from "../data/solicitudesMock";
 
+// 🚨 Incluyendo el AuthContext
+import { useAuth } from "../context/AuthContext";
+// Asumiendo que esta es la ruta a su archivo de configuración de API
+import API_BASE_URL from "../components/apiConfig";
 
-// --- MOCK DATA (actualizado para Work Orders y con campo assignedTo) ---
-const MOCK_REPORTS = [
-  {
-    id: "001",
-    pieza: "Tapa A1",
-    area: "Producción",
-    tipo: "Daño físico",
-    prioridad: "Alta",
-    estado: "Nueva",
-    assignedTo: "", // sin asignar
-    fecha: "2025-11-04"
-  },
-  {
-    id: "002",
-    pieza: "Base B5",
-    area: "Mantenimiento",
-    tipo: "Mal funcionamiento",
-    prioridad: "Media",
-    estado: "Asignada",
-    assignedTo: "Javier Pérez",
-    fecha: "2025-11-03"
-  },
-  {
-    id: "003",
-    pieza: "Núcleo C2",
-    area: "Calidad",
-    tipo: "Falla de material",
-    prioridad: "Baja",
-    estado: "En progreso",
-    assignedTo: "Ana López",
-    fecha: "2025-11-02"
-  },
-  {
-    id: "004",
-    pieza: "Cavidad D9",
-    area: "Producción",
-    tipo: "Fractura",
-    prioridad: "Crítica",
-    estado: "Revision Calidad",
-    assignedTo: "Carlos Salas",
-    fecha: "2025-11-01"
-  },
-  {
-    id: "005",
-    pieza: "Guía E7",
-    area: "Almacén",
-    tipo: "Corrosión",
-    prioridad: "Baja",
-    estado: "Completado",
-    assignedTo: "",
-    fecha: "2025-10-31"
-  },
+// ----------------------------------------------------------------------
+// DEFINICIÓN DE ENDPOINT Y CONSTANTES
+// ----------------------------------------------------------------------
+const API_SOLICITUDES_URL = `${API_BASE_URL}/Solicitudes`;
+
+// Opciones de filtro: solo las activas, excluyendo historial
+const ACTIVE_FILTER_OPTIONS = [
+    { value: "all", label: "Todos los Estados Activos" },
+    { value: "En Revisión", label: "En Revisión" },
+    { value: "Aprobada", label: "Aprobada" },
+    { value: "Iniciada", label: "Iniciada" },
+    { value: "En Proceso", label: "En Proceso" },
 ];
 
-// --- COMPONENTE PRINCIPAL ---
-export default function Dashboard() {
-  const [reports, setReports] = useState([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [personFilter, setPersonFilter] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
-  const navigate = useNavigate();
-  const kpis = useMemo(() => {
-  const total = reports.length;
+// Componente para una celda de tabla (reutilizado)
+function Td({ children, className = "" }) {
+    return (
+        <td className={`px-4 py-3 whitespace-nowrap text-sm text-gray-800 ${className}`}>
+            {children}
+        </td>
+    );
+}
 
-  const enProceso = reports.filter(r => r.estado?.toLowerCase() === "en proceso").length;
+// Lógica de colores para Prioridad
+const getPriorityClasses = (priority) => {
+    switch (priority) {
+        case "Urgente": return "text-white bg-red-600 font-bold";
+        case "Alta": return "text-red-700 bg-red-100 font-medium";
+        case "Media": return "text-yellow-700 bg-yellow-100 font-medium";
+        case "Baja": return "text-green-700 bg-green-100 font-medium";
+        case "En Revisión": return "text-gray-700 bg-gray-200 font-medium";
+        case "Completada": return "text-blue-700 bg-blue-100 font-medium";
+        default: return "text-gray-700 bg-gray-100";
+    }
+};
 
-  const pendiente = reports.filter(r => {
-    const estado = r.estado?.toLowerCase();
-    return estado === "nueva" || estado === "asignada" || estado === "pendiente";
-  }).length;
-
-  const avgDays = total > 0
-    ? (reports.reduce((acc, r) => acc + Number(r.diasAbierto || 0), 0) / total).toFixed(1)
-    : 0;
-
-  return { total, enProceso, pendiente, avgDays };
-}, [reports]);
-
-  const handleNewReport = () => {
-    navigate("/solicitar");
-  };
-
-  useEffect(() => {
-    // Simulación de carga
-    setTimeout(() => {
-      setReports(MOCK_SOLICITUDES.filter(r => {
-  const estado = r.estado?.toLowerCase();
-  return estado !== "completado" && estado !== "terminado";
-}));
+// Cálculo de días de apertura
+const calculateDaysOpen = (fechaCreacion) => {
+    if (!fechaCreacion) return null;
+    const today = new Date();
+    const creationDate = new Date(fechaCreacion);
+    const diffTime = Math.abs(today - creationDate);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+};
 
 
-      setIsLoading(false);
-    }, 600);
-  }, []);
+// ----------------------------------------------------------------------
+// Componente de Fila de Tabla
+// ----------------------------------------------------------------------
+function SolicitudTableRow({ solicitud }) {
+    const navigate = useNavigate();
+    
+    const { 
+        id, 
+        piezaNombre, 
+        maquina,
+        solicitanteNombre, 
+        prioridadActual, // Prioridad asignada por el revisor (Alta, Media, etc.)
+        estadoOperacional, // Estado de la fase del proceso (Viene del DTO de la API)
+        fechaYHora, 
+        responsable, 
+        fechaCompromiso 
+    } = solicitud;
+    
+    // 🚨 LÓGICA CLAVE: Separar Prioridad (Urgencia) de Estado (Fase) 🚨
+    let displayEstado = estadoOperacional;
 
-  // Lista única de personas para sugerir en filtro (extraída de reports)
-  const peopleOptions = useMemo(() => {
-    const names = reports.map(r => (r.assignedTo || "").trim()).filter(Boolean);
-    return Array.from(new Set(names));
-  }, [reports]);
-
-  const filteredReports = useMemo(() => {
-    let result = reports.slice();
-
-    const q = (searchTerm || "").trim().toLowerCase();
-    if (q) {
-      result = result.filter(report => {
-        const id = (report.id || "").toLowerCase();
-        const pieza = (report.pieza || "").toLowerCase();
-        const area = (report.area || "").toLowerCase();
-        const tipo = (report.tipo || "").toLowerCase();
-        const estado = (report.estado || "").toLowerCase();
-        const assigned = (report.assignedTo || "").toLowerCase();
-        return (
-          id.includes(q) ||
-          pieza.includes(q) ||
-          area.includes(q) ||
-          tipo.includes(q) ||
-          estado.includes(q) ||
-          assigned.includes(q)
-        );
-      });
+    // Si el estado no está definido o es un valor inicial
+    if (!estadoOperacional || estadoOperacional === 'Pendiente' || prioridadActual === 'Pendiente' || !prioridadActual) {
+        displayEstado = "En Revisión";
+    } 
+    // Si el DTO de la API repite la prioridad en el campo de estado (el problema reportado)
+    // y la prioridad YA FUE ASIGNADA (o sea, es diferente de En Revisión/Pendiente)
+    else if (['Baja', 'Media', 'Alta', 'Urgente', 'Crítica'].includes(estadoOperacional) && estadoOperacional === prioridadActual) {
+        // Asumimos que si tiene prioridad asignada, ya fue Aprobada o está en cola.
+        displayEstado = "Aprobada / En Cola";
+    } 
+    // Si el DTO viene con estados correctos, los mantenemos
+    else {
+        displayEstado = estadoOperacional;
     }
 
-    const p = (personFilter || "").trim().toLowerCase();
-    if (p) {
-      result = result.filter(r => (r.assignedTo || "").toLowerCase().includes(p));
-    }
 
-    return result;
-  }, [reports, searchTerm, personFilter]);
+    // Cálculo de días abierto
+    const diasAbierto = useMemo(() => calculateDaysOpen(fechaYHora), [fechaYHora]);
 
-  return (
-    <>
-      <h1 className="text-2xl font-bold mb-6">Work Orders Tracker — Gestión Operacional</h1>
-
-      {/* Acciones y filtros */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleNewReport}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition duration-150"
-          >
-            <PlusCircle size={18} /> Nueva Orden
-          </button>
-          <button className="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-lg transition duration-150">
-            Exportar
-          </button>
-        </div>
-
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Buscar por ID, pieza, área, estado o persona..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="border border-gray-300 rounded-lg pl-10 pr-3 py-2 w-72 focus:ring-blue-500 focus:border-blue-500 transition duration-150"
-            />
-          </div>
-
-          <select
-            value={personFilter}
-            onChange={(e) => setPersonFilter(e.target.value)}
-            className="border border-gray-300 rounded-lg pl-3 pr-3 py-2 w-56 focus:ring-blue-500 focus:border-blue-500 transition duration-150"
-          >
-            <option value="">Filtrar por persona (todas)</option>
-            {peopleOptions.map(name => (
-              <option key={name} value={name}>
-                {name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-{/* --- KPIs --- */}
-<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-  <Kpi title="Total Órdenes" value={kpis.total} color="indigo" />
-  <Kpi title="En Proceso" value={kpis.enProceso} color="blue" />
-  <Kpi title="Pendientes" value={kpis.pendiente} color="red" />
-  <Kpi title="Días Promedio" value={kpis.avgDays} color="green" />
-</div>
-
-      {/* Tabla de reportes */}
-      <div className="bg-white rounded-xl shadow-md overflow-hidden">
-        <table className="min-w-full border-collapse">
-          <thead className="bg-gray-200">
+    return (
+        <tr className="border-b border-gray-100 hover:bg-gray-50 transition duration-150">
+            <Td className="font-semibold text-indigo-600">{id}</Td>
+            <Td>{piezaNombre} ({maquina})</Td>
+            <Td className="text-gray-500">{solicitanteNombre}</Td>
+            {/* COLUMNA DE PRIORIDAD: Muestra Urgencia */}
+            <Td>
+                <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border ${getPriorityClasses(prioridadActual)}`}>
+                    {prioridadActual || 'Pendiente'}
+                </span>
+            </Td>
             
-            <tr><Th>ID</Th><Th>Descripción</Th><Th>N°</Th><Th>Pieza o Solicitante</Th><Th>Prioridad</Th><Th>Estado</Th><Th>Responsable</Th><Th>Fecha Compromiso</Th><Th>Días Abierto</Th><Th>Acciones</Th></tr>
-          </thead>
-          <tbody>
-            {isLoading ? (
-              <tr>
-                <td colSpan="9" className="text-center py-8 text-lg text-gray-500">
-                  Cargando reportes...
-                </td>
-              </tr>
-            ) : filteredReports.length === 0 ? (
-              <tr>
-                <td colSpan="9" className="text-center py-8 text-lg text-gray-500">
-                  No se encontraron reportes que coincidan con "{searchTerm || personFilter}".
-                </td>
-              </tr>
-            ) : (
-              filteredReports.map((report) => (
-                <TableRow
-                  key={report.id}
-                  {...report}
-                  navigate={navigate}
-                />
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </>
-  );
+            {/* COLUMNA DE ESTADO: Muestra Fase del Proceso */}
+            <Td className={`font-medium ${displayEstado === "En Revisión" ? 'text-red-600 font-bold' : 'text-green-600'}`}>
+                {displayEstado}
+            </Td>
+
+            {/* CAMPOS ADICIONALES */}
+            <Td>{responsable || "—"}</Td> 
+            <Td>{fechaCompromiso ? new Date(fechaCompromiso).toLocaleDateString() : "—"}</Td>
+            <Td className={`font-medium ${diasAbierto > 20 ? 'text-red-600' : 'text-green-600'}`}>
+                {diasAbierto ? `${diasAbierto} días` : '—'}
+            </Td>
+            
+            {/* ACCIONES (Solo Ver Más) */}
+            <Td>
+                <div className="flex gap-2">
+                    <button
+                        title="Ver Detalles / Saber Más"
+                        onClick={() => navigate(`/solicitud-detalles/${id}`)}
+                        className="text-indigo-600 hover:text-indigo-800 p-1 rounded hover:bg-indigo-50 transition"
+                    >
+                        <Eye size={18} /> {/* Ícono de Ver Más */}
+                    </button>
+                    {/* El botón de eliminar se ha removido según solicitud */}
+                </div>
+            </Td>
+        </tr>
+    );
 }
 
-/* --- COMPONENTES AUXILIARES --- */
-
-function Th({ children }) {
-  return (
-    <th className="text-left px-4 py-3 text-sm font-semibold border-b border-gray-300">
-      {children}
-    </th>
-  );
-}
-
-function Td({ children }) {
-  return <td className="px-4 py-3 text-sm border-b border-gray-200">{children}</td>;
-}
-
-function TableRow({
-  id,
-  pieza,
-  maquina,
-  area,
-  tipo,
-  prioridad,
-  estado,
-  assignedTo,
-  solicitante,
-  fecha,
-  fechaCompromiso,
-  diasAbierto,
-  navigate
-}) {
-  const handleAction = () => {
-    if (estado === "Revision Calidad") {
-      navigate(`/revision-calidad/${id}`);
-    } else {
-      navigate(`/trabajo/${id}`);
-    }
-  };
-const getStatusClasses = (valor) => {
-  const estado = valor?.toString().trim().toLowerCase();
-
-  switch (estado) {
-    case "media":
-      return "bg-yellow-100 text-yellow-700";
-    case "alta":
-      return "bg-red-100 text-red-700";
-    case "pendiente":
-      return "bg-red-100 text-red-700";
-    case "en proceso":
-      return "bg-blue-100 text-blue-700";
-    case "baja":
-      return "bg-green-100 text-green-700";
-    case "crítica":
-      return "bg-purple-100 text-purple-700";
-    case "revision calidad":
-      return "bg-indigo-100 text-indigo-700";
-    case "completado":
-      return "bg-gray-100 text-gray-700";
-    default:
-      return "bg-gray-200 text-gray-600";
-  }
-};  
-
-  return (
-    <tr className="border-b border-gray-200 hover:bg-gray-50 transition duration-100">
-  <Td>{id}</Td>
-  <Td>{pieza}</Td>
-  <Td>{maquina || "—"}</Td>
-  <Td>{area}</Td>
-  <Td>
-  <span className={`px-3 py-1 rounded-full text-xs tracking-wider font-semibold ${getStatusClasses(prioridad)}`}>
-    {prioridad}
-  </span>
-</Td>
-  <Td>
-    <span className={`px-3 py-1 rounded-full text-xs tracking-wider ${getStatusClasses(estado)}`}>
-      {estado}
-    </span>
-  </Td>
-  <Td>{assignedTo || solicitante || "—"}</Td>
-  <Td>{fechaCompromiso || fecha || "—"}</Td>
-  <Td className={`font-medium ${diasAbierto > 20 ? 'text-red-600' : 'text-green-600'}`}>
-    {diasAbierto ? `${diasAbierto} días` : '—'}
-  </Td>
-  <Td>
-    <div className="flex gap-2">
-      <button
-        title="Ver/Editar Orden"
-        onClick={() => {
-          if (estado === "Revision Calidad") {
-            navigate(`/revision-calidad/${id}`);
-          } else {
-            navigate(`/trabajo/${id}`);
-          }
-        }}
-        className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50 transition"
-      >
-        <Edit size={18} />
-      </button>
-      <button
-        title="Eliminar orden (Solo Admin)"
-        className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50 transition"
-      >
-        <Trash2 size={18} />
-      </button>
-    </div>
-  </Td>
-</tr>
-  );
-}
-
-// ✅ Componente Kpi (fuera de TableRow)
+// Componente Kpi (fuera de TableRow)
 function Kpi({ title, value, color }) {
-  const colors = {
-    indigo: "text-indigo-600 border-indigo-500",
-    blue: "text-blue-600 border-blue-500",
-    red: "text-red-600 border-red-500",
-    green: "text-green-600 border-green-500"
-  };
+    const defaultColor = "bg-blue-100 text-blue-800";
+    const colorClasses = {
+        'red': 'bg-red-100 text-red-800',
+        'green': 'bg-green-100 text-green-800',
+        'yellow': 'bg-yellow-100 text-yellow-800',
+        'blue': 'bg-blue-100 text-blue-800',
+    };
+    
+    return (
+        <div className="p-4 bg-white rounded-xl shadow-md border-t-4 border-gray-200">
+            <p className="text-sm font-medium text-gray-500">{title}</p>
+            <div className={`mt-1 inline-flex items-center text-xl font-bold rounded-full px-3 py-1 ${colorClasses[color] || defaultColor}`}>
+                {value}
+            </div>
+        </div>
+    );
+}
 
-  return (
-    <div className={`bg-white rounded-xl shadow p-4 border-l-4 ${colors[color]}`}>
-      <p className="text-sm font-medium text-gray-500">{title}</p>
-      <h2 className="text-3xl font-bold text-gray-900 mt-1">{value}</h2>
-    </div>
-  );
+
+// ----------------------------------------------------------------------
+// Componente Principal
+// ----------------------------------------------------------------------
+export default function Dashboard() {
+    // 🚨 Incluyendo el AuthContext
+    const { user, isAuthenticated, loading: loadingUser } = useAuth();
+    const navigate = useNavigate();
+
+    const [solicitudes, setSolicitudes] = useState([]);
+    const [loadingSolicitudes, setLoadingSolicitudes] = useState(true);
+    const [searchTerm, setSearchTerm] = useState("");
+    const [filterStatus, setFilterStatus] = useState("all");
+
+    // LÓGICA DE CARGA DE SOLICITUDES
+    const fetchSolicitudes = async () => {
+        if (!isAuthenticated) return;
+        
+        setLoadingSolicitudes(true);
+        try {
+            // Usando fetch con la URL del controlador
+            const response = await fetch(API_SOLICITUDES_URL);
+
+            if (!response.ok) {
+                throw new Error(`Error ${response.status} al cargar solicitudes.`);
+            }
+
+            const data = await response.json();
+            setSolicitudes(data);
+            
+        } catch (error) {
+            console.error("Error al obtener solicitudes:", error);
+            setSolicitudes([]);
+        } finally {
+            setLoadingSolicitudes(false);
+        }
+    };
+
+    useEffect(() => {
+        if (!loadingUser && isAuthenticated) {
+            fetchSolicitudes();
+        }
+    }, [isAuthenticated, loadingUser]);
+
+
+    // LÓGICA DE FILTRADO Y BÚSQUEDA
+    const filteredSolicitudes = useMemo(() => {
+        let temp = solicitudes;
+
+        // 1. Filtrar por Estado (si aplica)
+        if (filterStatus !== "all") {
+            temp = temp.filter(s => s.estadoOperacional === filterStatus);
+        } else {
+             // FILTRO "TODAS LAS ACTIVAS": Excluye Completadas y Cerradas (Histórico)
+            const estadosInactivos = ["Completada", "Cerrada"];
+            temp = temp.filter(s => !estadosInactivos.includes(s.estadoOperacional));
+        }
+
+
+        // 2. Filtrar por término de búsqueda (ID, Pieza, Solicitante)
+        if (searchTerm) {
+            const lowerCaseSearch = searchTerm.toLowerCase();
+            temp = temp.filter(s =>
+                String(s.id).includes(lowerCaseSearch) ||
+                (s.piezaNombre && s.piezaNombre.toLowerCase().includes(lowerCaseSearch)) ||
+                (s.solicitanteNombre && s.solicitanteNombre.toLowerCase().includes(lowerCaseSearch))
+            );
+        }
+
+        // Ordenar por ID o Fecha
+        return temp.sort((a, b) => new Date(b.fechaYHora) - new Date(a.fechaYHora)); 
+    }, [solicitudes, searchTerm, filterStatus]);
+
+
+    // ----------------------------------------------------------------------
+    // FUNCIÓN DE EXPORTACIÓN A CSV (EXCEL) - NORMALIZADA
+    // ----------------------------------------------------------------------
+    const handleExport = () => {
+        if (filteredSolicitudes.length === 0) {
+            alert("No hay datos para exportar.");
+            return;
+        }
+
+        // 🚨 ENCABEZADOS NORMALIZADOS Y MÁS DETALLADOS
+        const exportHeaders = [
+            "ID Solicitud", "Fecha Creación", "Hora Creación", "Solicitante", 
+            "Pieza", "Máquina", "Tipo Solicitud", "Prioridad Asignada", "Estado Actual", 
+            "Responsable Asignado", "Fecha Compromiso", "Días Abierto", "Descripción Completa"
+        ];
+        
+        // 🚨 CLAVES DE DTO ASOCIADAS A LOS NUEVOS CAMPOS (incluyendo los calculados)
+        const exportKeys = [
+            "id", "fechaCreacion", "horaCreacion", "solicitanteNombre", 
+            "piezaNombre", "maquina", "tipo", "prioridadActual", "estadoOperacional", 
+            "responsable", "fechaCompromiso", "diasAbierto", "detalles"
+        ];
+        
+        // 1. Preparar los datos, calculando y formateando los campos
+        const csvData = filteredSolicitudes.map(solicitud => {
+            const creationDate = solicitud.fechaYHora ? new Date(solicitud.fechaYHora) : null;
+            
+            // Separar Fecha y Hora (Normalización)
+            const fechaCreacion = creationDate ? creationDate.toLocaleDateString('es-MX') : '';
+            const horaCreacion = creationDate ? creationDate.toLocaleTimeString('es-MX') : '';
+
+            // Calcular Días Abierto y Formatear Fecha Compromiso
+            const diasAbierto = calculateDaysOpen(solicitud.fechaYHora);
+            const fechaCompromiso = solicitud.fechaCompromiso 
+                ? new Date(solicitud.fechaCompromiso).toLocaleDateString('es-MX') 
+                : '';
+            
+            return {
+                ...solicitud, // Copia los campos existentes
+                fechaCreacion,
+                horaCreacion,
+                diasAbierto: diasAbierto ? `${diasAbierto}` : '0', 
+                fechaCompromiso: fechaCompromiso,
+            };
+        });
+
+        // 2. Construir el contenido CSV (usando ; como separador)
+        let csvContent = exportHeaders.join(";") + "\n"; 
+
+        csvData.forEach(item => {
+            const row = exportKeys.map(key => {
+                let value = item[key] || '';
+                
+                // Limpieza de texto: eliminar saltos de línea y escapar comillas
+                value = String(value).replace(/\n/g, ' ').replace(/\r/g, ' ').replace(/"/g, '""').trim();
+                
+                // Asegurarse de que los campos con texto largo o separadores vayan entre comillas
+                if (value.includes(';') || key === 'detalles' || value.includes(',')) {
+                    value = `"${value}"`;
+                }
+                return value;
+            }).join(";");
+            csvContent += row + "\n";
+        });
+
+        // 3. Crear el BLOB y forzar la descarga (con BOM para UTF-8 en Excel)
+        const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        
+        link.href = url;
+        link.setAttribute('download', 'Solicitudes_Reporte_' + new Date().toISOString().split('T')[0] + '.csv');
+        
+        document.body.appendChild(link);
+        link.click();
+        
+        document.body.removeChild(link);
+    };
+    // ----------------------------------------------------------------------
+
+
+    // CÁLCULO DE KPIS
+    const kpiData = useMemo(() => {
+        const total = solicitudes.length;
+        const pendientes = solicitudes.filter(s => s.estadoOperacional === "En Revisión" || s.prioridadActual === 'Pendiente' || !s.prioridadActual).length;
+        const enProgreso = solicitudes.filter(s => s.estadoOperacional === "En Proceso" || s.estadoOperacional === "Iniciada" || s.estadoOperacional === "Aprobada").length;
+        const completadas = solicitudes.filter(s => s.estadoOperacional === "Completada" || s.estadoOperacional === "Cerrada").length;
+
+        return { total, pendientes, enProgreso, completadas };
+    }, [solicitudes]);
+
+
+    // RENDERIZADO
+    if (loadingUser || loadingSolicitudes) {
+        return <div className="p-8 text-center text-xl text-indigo-600">Cargando Dashboard...</div>;
+    }
+
+    if (!isAuthenticated) {
+        return <div className="p-8 text-center text-xl text-red-600">Acceso no autorizado. Por favor, inicie sesión.</div>;
+    }
+
+    return (
+        <div className="p-6">
+            <header className="flex justify-between items-center mb-6 border-b pb-4">
+                <h1 className="text-3xl font-bold text-gray-800">Panel de Solicitudes</h1>
+                <div className="flex space-x-3">
+                    <button
+                        // 🚨 RUTA CORREGIDA: /solicitar
+                        onClick={() => navigate('/solicitar')}
+                        className="flex items-center px-4 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition shadow-md"
+                    >
+                        <PlusCircle size={20} className="mr-2" />
+                        Nueva Solicitud
+                    </button>
+                    <button
+                        title="Exportar datos (CSV/Excel)"
+                        onClick={handleExport}
+                        className="flex items-center px-4 py-2 text-sm font-semibold text-indigo-600 bg-indigo-100 rounded-lg hover:bg-indigo-200 transition shadow-md"
+                    >
+                        <Download size={20} className="mr-2" />
+                        Exportar
+                    </button>
+                </div>
+            </header>
+
+            {/* KPIS */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                <Kpi title="Total Solicitudes Activas" value={kpiData.total - kpiData.completadas} color="blue" /> 
+                <Kpi title="Pendientes de Revisión" value={kpiData.pendientes} color="red" />
+                <Kpi title="Aprobadas / En Proceso" value={kpiData.enProgreso} color="yellow" />
+                <Kpi title="Total Histórico (Completadas)" value={kpiData.completadas} color="green" />
+            </div>
+
+            {/* CONTROLES DE TABLA */}
+            <div className="bg-white p-6 rounded-xl shadow-lg">
+                <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
+                    {/* Búsqueda */}
+                    <div className="relative w-full md:w-1/3">
+                        <input
+                            type="text"
+                            placeholder="Buscar por ID, Pieza o Solicitante"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full border border-gray-300 rounded-lg p-3 pl-10 focus:ring-indigo-500 focus:border-indigo-500"
+                        />
+                        <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    </div>
+
+                    {/* Filtro de Estado */}
+                    <div className="relative w-full md:w-auto">
+                        <select
+                            value={filterStatus}
+                            onChange={(e) => setFilterStatus(e.target.value)}
+                            className="block w-full border border-gray-300 rounded-lg p-3 pr-10 focus:ring-indigo-500 focus:border-indigo-500 appearance-none bg-white"
+                        >
+                            {/* OPCIONES DE FILTRO AJUSTADAS */}
+                            {ACTIVE_FILTER_OPTIONS.map(option => (
+                                <option key={option.value} value={option.value}>{option.label}</option>
+                            ))}
+                        </select>
+                        <Filter size={20} className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
+                    </div>
+                </div>
+
+                {/* TABLA DE SOLICITUDES */}
+                <div className="overflow-x-auto border rounded-xl">
+                    <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pieza (Máquina)</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solicitante</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prioridad</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Responsable</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">F. Compromiso</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Días Abierto</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                            {loadingSolicitudes ? (
+                                <tr>
+                                    <Td colSpan="9" className="text-center py-8 text-indigo-500">Cargando solicitudes...</Td>
+                                </tr>
+                            ) : filteredSolicitudes.length > 0 ? (
+                                filteredSolicitudes.map((s) => <SolicitudTableRow key={s.id} solicitud={s} />)
+                            ) : (
+                                <tr>
+                                    <Td colSpan="9" className="text-center py-8 text-gray-500">
+                                        No hay solicitudes que coincidan con los filtros.
+                                    </Td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    );
 }
