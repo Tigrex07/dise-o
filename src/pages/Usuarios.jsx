@@ -317,7 +317,7 @@ function UserTableRow({ user, handleEdit, handleToggleActive }) {
                     {user.activo ? 'Activo' : 'Inactivo'}
                 </span>
             </Td>
-            <Td className="text-gray-500">{user.fechaCreacion || 'N/A'}</Td>
+            
             <Td>
                 <div className="flex gap-3">
                     <button
@@ -573,7 +573,7 @@ export default function Usuarios() {
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rol</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Área</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Creación</th>
+                           
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
                         </tr>
                     </thead>
@@ -589,7 +589,7 @@ export default function Usuarios() {
                             ))
                         ) : (
                             <tr>
-                                <td colSpan="8" className="px-6 py-12 text-center text-gray-500">
+                                <td colSpan="7" className="px-6 py-12 text-center text-gray-500">
                                     <AlertTriangle size={24} className="mx-auto mb-2 text-yellow-500"/>
                                     {users.length > 0 && searchTerm ? "No se encontraron usuarios que coincidan con la búsqueda." : "No hay usuarios registrados en el sistema."}
                                 </td>

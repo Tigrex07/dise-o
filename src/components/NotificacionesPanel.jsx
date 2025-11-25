@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { Link } from "react-router-dom";
 
 export default function NotificacionesPanel() {
   const [abierto, setAbierto] = useState(false);
@@ -44,6 +45,14 @@ export default function NotificacionesPanel() {
               </li>
             ))}
           </ul>
+
+          {/* Enlace al historial */}
+          <Link
+            to="/notificaciones"
+            className="block text-center text-sm text-blue-600 hover:underline py-3 border-t"
+          >
+            Ver todas las notificaciones
+          </Link>
         </div>
       )}
     </div>
