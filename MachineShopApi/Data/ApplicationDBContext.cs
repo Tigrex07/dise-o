@@ -17,21 +17,42 @@ namespace MachineShopApi.Data
         public DbSet<Area> Areas { get; set; } = default!;
         public DbSet<Pieza> Piezas { get; set; } = default!;
         public DbSet<Solicitud> Solicitudes { get; set; } = default!;
-        // 🚨 IMPORTANTE: El nombre del DbSet DEBE coincidir con el que usas en los controladores
         public DbSet<EstadoTrabajo> EstadoTrabajo { get; set; } = default!;
-        public DbSet<Revision> Revisiones { get; set; } = default!; // Corregido: Si usas Revisiones en el controlador, debe ir aquí
+        public DbSet<Revision> Revisiones { get; set; } = default!;
 
         // Configuración de Modelos y Relaciones (Fluent API)
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            base.OnModelCreating(modelBuilder);
+
             // ====================================================================
-            // RELACIONES DE SOLICITUD
+            // 🚨 CAMBIO CRÍTICO: SOLUCIÓN DOBLE COLUMNA MÁQUINA (NOT NULL) EN PIEZA
+            // ====================================================================
+
+            // 1. Mapear la propiedad C# 'Maquina' (sin acento) a la columna OBLIGATORIA 'Máquina' (con acento).
+            //    Esta es la columna que EF Core intentaba llenar en el comando SQL (ver tu log).
+            modelBuilder.Entity<Pieza>()
+                .Property(p => p.Maquina)
+                .HasColumnName("Máquina")
+                .IsRequired();
+
+            // 2. Crear una Propiedad de Sombra (Shadow Property) para llenar la otra columna OBLIGATORIA 
+            //    'Maquina' (sin acento), que es la que está causando el error NOT NULL.
+            //    Usaremos el nombre de la Shadow Property: "MaquinaSinAcento"
+            modelBuilder.Entity<Pieza>()
+                .Property<string>("MaquinaSinAcento") // Propiedad de Sombra (Nombre temporal en C#)
+                .HasColumnName("Maquina")             // Columna real de la BD (sin acento)
+                .IsRequired()                         // Indicar que es NOT NULL
+                .HasMaxLength(50);
+
+            // ====================================================================
+            // RELACIONES DE SOLICITUD (Las que ya tenías)
             // ====================================================================
 
             // Solicitud (Solicitante) <--> Usuario (Relación 1 a muchos)
             modelBuilder.Entity<Solicitud>()
                 .HasOne(s => s.Solicitante)
-                .WithMany(u => u.SolicitudesRealizadas) // Asumiendo que esta propiedad existe en Usuario.cs
+                .WithMany(u => u.SolicitudesRealizadas)
                 .HasForeignKey(s => s.SolicitanteId)
                 .OnDelete(DeleteBehavior.Restrict);
 
@@ -41,9 +62,9 @@ namespace MachineShopApi.Data
                 .WithMany(p => p.Solicitudes)
                 .HasForeignKey(s => s.IdPieza);
 
-            // 🚨 CAMBIO CRÍTICO: Solicitud <--> EstadoTrabajo (Relación 1 a MUCHOS)
+            // Solicitud <--> EstadoTrabajo (Relación 1 a MUCHOS)
             modelBuilder.Entity<Solicitud>()
-                .HasMany(s => s.Operaciones) // Una Solicitud tiene muchos registros de EstadoTrabajo
+                .HasMany(s => s.Operaciones)
                 .WithOne(et => et.Solicitud)
                 .HasForeignKey(et => et.IdSolicitud);
 
@@ -78,7 +99,6 @@ namespace MachineShopApi.Data
             modelBuilder.Entity<Usuario>().HasData(
                 new Usuario
                 {
-                    // 🚨 CORRECCIÓN: Usamos 'Id' en lugar de 'IdUsuario' si ese es el nombre de la propiedad PK en tu modelo Usuario
                     Id = 1,
                     Nombre = "Revisión de Ingeniería",
                     Email = "system@molex.com",
@@ -88,10 +108,6 @@ namespace MachineShopApi.Data
                     Activo = true
                 }
             );
-
-            // Se asumen que las demás relaciones están definidas en otros métodos o son configuraciones por convención
-
-            base.OnModelCreating(modelBuilder);
         }
     }
 }

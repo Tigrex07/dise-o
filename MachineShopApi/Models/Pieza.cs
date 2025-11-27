@@ -1,32 +1,31 @@
-using System.ComponentModel.DataAnnotations;
+Ôªøusing System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Collections.Generic;
 
 namespace MachineShopApi.Models
 {
     public class Pieza
     {
-        // Clave Primaria
         [Key]
         [Column("IdPieza")]
         public int Id { get; set; }
 
-        // Clave For·nea a ¡rea
         public int IdArea { get; set; }
-
-        public string M·quina { get; set; } = string.Empty;
 
         [Required]
         [MaxLength(100)]
         public string NombrePieza { get; set; } = string.Empty;
 
+        // ‚úÖ USAMOS SOLO ESTA: Se mapea correctamente a la columna "Maquina" de la BD.
+        [Required]
         [MaxLength(50)]
-        public string Maquina { get; set; } = string.Empty; // Nombre o cÛdigo de la m·quina
+        public string Maquina { get; set; } = string.Empty;
 
-        // Propiedad de NavegaciÛn 1: ¡rea a la que pertenece
+        // Propiedad de Navegaci√≥n 1: √Årea a la que pertenece
         [ForeignKey("IdArea")]
         public Area? Area { get; set; }
 
-        // Propiedad de NavegaciÛn 2: ColecciÛn de Solicitudes que usan esta Pieza
+        // Propiedad de Navegaci√≥n 2: Colecci√≥n de Solicitudes que usan esta Pieza
         public ICollection<Solicitud> Solicitudes { get; set; } = new List<Solicitud>();
     }
 }

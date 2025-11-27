@@ -105,79 +105,113 @@ public class SolicitudesController : ControllerBase
     }
 
 
-    // 1. POST: api/Solicitudes - CREAR una nueva solicitud
+    // POST: api/Solicitudes - CREAR una nueva solicitud
+    // Recibe el DTO unificado con los datos de Pieza y Solicitud.
+    // POST: api/Solicitudes - CREAR una nueva solicitud
     [HttpPost]
-    public async Task<ActionResult<SolicitudDto>> PostSolicitud([FromBody] SolicitudCreationDto creationDto)
+    public async Task<ActionResult<SolicitudDto>> PostSolicitud([FromBody] SolicitudCreationDto solicitudDto)
     {
         if (!ModelState.IsValid)
         {
             return BadRequest(ModelState);
         }
 
-        // 1. Validar que las FKs existan
-        // 🚨 Mantenemos comentado: Esto permite que los IDs fijos (1, 1) pasen sin requerir los datos de la base.
-        /*
-        var solicitanteExiste = await _context.Usuarios.AnyAsync(u => u.Id == creationDto.SolicitanteId);
-        var piezaExiste = await _context.Piezas.AnyAsync(p => p.Id == creationDto.IdPieza);
-
-        if (!solicitanteExiste || !piezaExiste)
+        // 1. Validar Solicitante (FK 1: SolicitanteId)
+        var solicitante = await _context.Usuarios.FindAsync(solicitudDto.SolicitanteId);
+        if (solicitante == null)
         {
-            return BadRequest("El ID del Solicitante o de la Pieza proporcionado no es válido.");
+            return BadRequest("El ID de Solicitante proporcionado no existe.");
         }
-        */
 
-        // 2. Mapear el DTO de Creación al Modelo 
+        // 2. Validar IdArea (FK 2: IdArea para la Pieza)
+        var areaExiste = await _context.Areas.AnyAsync(a => a.Id == solicitudDto.IdArea);
+        if (!areaExiste)
+        {
+            return BadRequest($"El ID de Área '{solicitudDto.IdArea}' no existe para asignar la pieza.");
+        }
+
+        // =======================================================
+        // 3. CREAR PIEZA 
+        // =======================================================
+        var nuevaPieza = new Pieza
+        {
+            IdArea = solicitudDto.IdArea,
+            NombrePieza = solicitudDto.NombrePieza,
+            Maquina = solicitudDto.Maquina
+        };
+
+        // Llenar Propiedad de Sombra para columna 'Maquina' (sin acento)
+        _context.Entry(nuevaPieza).Property("MaquinaSinAcento").CurrentValue = solicitudDto.Maquina;
+
+        _context.Piezas.Add(nuevaPieza);
+
+        // --- Primer SaveChanges: Guardamos la nueva Pieza para obtener su Id ---
+        await _context.SaveChangesAsync();
+
+        int idPieza = nuevaPieza.Id; // ID de la Pieza recién creada
+
+        // =======================================================
+        // 4. CREAR SOLICITUD
+        // =======================================================
         var solicitud = new Solicitud
         {
-            SolicitanteId = creationDto.SolicitanteId,
-            IdPieza = creationDto.IdPieza,
-            Turno = creationDto.Turno,
-            Tipo = creationDto.Tipo,
-            Detalles = creationDto.Detalles,
-            Dibujo = creationDto.Dibujo ?? string.Empty,
-            FechaYHora = DateTime.Now
+            SolicitanteId = solicitudDto.SolicitanteId,
+            IdPieza = idPieza, // Usamos el ID de la pieza recién creada
+            FechaYHora = solicitudDto.FechaYHora,
+            Turno = solicitudDto.Turno,
+            Tipo = solicitudDto.Tipo,
+            Detalles = solicitudDto.Detalles,
+            Dibujo = solicitudDto.Dibujo ?? string.Empty,
         };
 
-        // --- Primer SaveChanges: Obtener el IdSolicitud ---
-        _context.Solicitudes.Add(solicitud);
-        await _context.SaveChangesAsync();
+        _context.Solicitudes.Add(solicitud); // Agregamos la Solicitud
 
-
-        // 3. 💡 FLUJO DE ESTADO INICIAL: Crear el primer registro en EstadoTrabajo ("En Revisión")
-        // ✅ CORRECCIÓN DE ERROR 500: Usamos el SolicitanteId, que está garantizado como 1.
-        // Esto evita el fallo de la clave foránea si el "Usuario de Sistema" (ID 1) no existe.
-        int idMaquinistaParaEstadoInicial = creationDto.SolicitanteId;
-
-        var primerEstado = new EstadoTrabajo
+        // =======================================================
+        // 5. CREAR REVISIÓN INICIAL (Dependiente de Solicitud)
+        // =======================================================
+        var nuevaRevision = new Revision
         {
-            IdSolicitud = solicitud.Id,
-            IdMaquinista = idMaquinistaParaEstadoInicial, // Usamos SolicitanteId (1)
+            Solicitud = solicitud, // 💡 ENLACE 1: Usamos la propiedad de navegación
+            IdRevisor = 1, // Usuario de Sistema
+            Prioridad = "En Revisión",
+            FechaHoraRevision = DateTime.UtcNow,
+            Comentarios = "Pendiente de revisión inicial por Ingeniería."
+        };
+        _context.Revisiones.Add(nuevaRevision);
+
+
+        // =======================================================
+        // 6. CREAR ESTADO DE TRABAJO INICIAL (Dependiente de Solicitud)
+        // =======================================================
+        var estadoInicial = new EstadoTrabajo
+        {
+            Solicitud = solicitud, // 💡 ENLACE 2: Usamos la propiedad de navegación
+
+            // Corrección FOREIGN KEY: Usamos el Usuario de Sistema para evitar errores de FK.
+            IdMaquinista = 1,
+
             MaquinaAsignada = "N/A",
-
-            FechaYHoraDeInicio = DateTime.Now,
-            FechaYHoraDeFin = null,
-
-            DescripcionOperacion = "En Revisión", // El estado inicial
             TiempoMaquina = 0,
-            Observaciones = "Solicitud creada. Pendiente de Revisión de Ingeniería."
+            DescripcionOperacion = "Pendiente de Revisión por Ingeniería",
+            FechaYHoraDeInicio = DateTime.UtcNow,
+            Observaciones = "Solicitud creada por el sistema y enviada a revisión."
         };
 
-        // --- Segundo SaveChanges: Guardar el primer estado ---
-        _context.EstadoTrabajo.Add(primerEstado);
+        _context.EstadoTrabajo.Add(estadoInicial);
+
+        // --- Segundo SaveChanges: Guarda Solicitud, Revision y Estado Inicial ---
+        // Al guardar 'solicitud', se le asignará el Id, y los enlaces se resolverán.
         await _context.SaveChangesAsync();
 
-
-        // 4. Recuperar el DTO de Lectura para la respuesta
-        // Usamos GetBaseSolicitudQuery para asegurar que todos los datos relacionados estén cargados
-        var nuevaSolicitud = await GetBaseSolicitudQuery()
+        // 7. Recuperar y devolver DTO
+        // La variable 'solicitud' ya tiene el ID generado por la BD.
+        var solicitudConRelaciones = await GetBaseSolicitudQuery()
             .FirstOrDefaultAsync(s => s.Id == solicitud.Id);
 
-        // Mapear a DTO en memoria
-        var nuevaSolicitudDto = MapToDto(nuevaSolicitud!);
+        var nuevaSolicitudDto = MapToDto(solicitudConRelaciones!);
 
         return CreatedAtAction(nameof(GetSolicitud), new { id = nuevaSolicitudDto.Id }, nuevaSolicitudDto);
     }
-
     // ----------------------------------------------------------------------
     // --- NUEVO ENDPOINT: DELETE ---
     // ----------------------------------------------------------------------
