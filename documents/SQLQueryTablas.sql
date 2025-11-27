@@ -1,78 +1,122 @@
-use MOLEX
+-- Reconstrucci√≥n del Esquema de Base de Datos Machine Shop
+-- Basado en capturas de pantalla del estado actual
 
-CREATE TABLE Usuarios (
-    IdUsuario INT PRIMARY KEY IDENTITY(1,1), -- (PK) Identificador ˙nico del usuario
-    Nombre VARCHAR(100) NOT NULL,            -- Nombre del usuario
-    Area VARCHAR(50),                        -- Departamento al que pertenece
-    Rol VARCHAR(50) NOT NULL,                -- Operador/Supervisor/Machine Shop
-    Activo BIT NOT NULL DEFAULT 1            -- Estado del usuario (Si/No)
+PRAGMA foreign_keys = OFF;
+
+-- --------------------------------------------------------
+-- 1. Tabla: Usuarios
+-- [Referencia: 1000305306.jpg]
+-- --------------------------------------------------------
+DROP TABLE IF EXISTS "Usuarios";
+CREATE TABLE "Usuarios" (
+    "IdUsuario" INTEGER NOT NULL CONSTRAINT "PK_Usuarios" PRIMARY KEY AUTOINCREMENT,
+    "Nombre" TEXT NOT NULL,
+    "Email" TEXT NOT NULL,
+    "PasswordHash" TEXT NOT NULL,
+    "Area" TEXT NOT NULL,
+    "Rol" TEXT NOT NULL,
+    "Activo" INTEGER NOT NULL
 );
 
-CREATE TABLE Areas (
-    IdArea INT PRIMARY KEY IDENTITY(1,1),     -- (PK) Identificador del ·rea
-    NombreArea VARCHAR(100) NOT NULL,        -- Nombre del departamento
-    ResponsableArea INT,                     -- (FK) Usuario encargado
-    
-    -- RestricciÛn de Llave For·nea
-    FOREIGN KEY (ResponsableArea) REFERENCES Usuarios(IdUsuario)
+-- --------------------------------------------------------
+-- 2. Tabla: Areas
+-- [Referencia: 1000305301.jpg]
+-- --------------------------------------------------------
+DROP TABLE IF EXISTS "Areas";
+CREATE TABLE "Areas" (
+    "IdArea" INTEGER NOT NULL CONSTRAINT "PK_Areas" PRIMARY KEY AUTOINCREMENT,
+    "NombreArea" TEXT NOT NULL,
+    "ResponsableAreaId" INTEGER NULL,
+    CONSTRAINT "FK_Areas_Usuarios_ResponsableAreaId" FOREIGN KEY ("ResponsableAreaId") REFERENCES "Usuarios" ("IdUsuario")
 );
 
-
-CREATE TABLE Piezas (
-    IdPieza INT PRIMARY KEY IDENTITY(1,1),   -- (PK) Identificador de la Pieza 
-    IdArea INT,                              -- (FK) ¡rea a la que pertenece 
-    NombrePieza VARCHAR(100) NOT NULL,       -- Nombre o cÛdigo de la pieza 
-    Maquina VARCHAR(50),                     -- Nombre o cÛdigo de la m·quina 
-    
-    -- RestricciÛn de Llave For·nea
-    FOREIGN KEY (IdArea) REFERENCES Areas(IdArea)
+-- --------------------------------------------------------
+-- 3. Tabla: Piezas
+-- [Referencia: 1000305303.jpg]
+-- üö® NOTA: Se observa la redundancia 'M√°quina' y 'Maquina' y FALTA 'PiezaNumero'
+-- --------------------------------------------------------
+DROP TABLE IF EXISTS "Piezas";
+CREATE TABLE "Piezas" (
+    "IdPieza" INTEGER NOT NULL CONSTRAINT "PK_Piezas" PRIMARY KEY AUTOINCREMENT,
+    "IdArea" INTEGER NOT NULL,
+    "M√°quina" TEXT NOT NULL, -- (Con acento)
+    "NombrePieza" TEXT NOT NULL,
+    "Maquina" TEXT NOT NULL, -- (Sin acento)
+    CONSTRAINT "FK_Piezas_Areas_IdArea" FOREIGN KEY ("IdArea") REFERENCES "Areas" ("IdArea") ON DELETE CASCADE
 );
 
-
-CREATE TABLE Solicitudes (
-    IdSolicitud INT PRIMARY KEY IDENTITY(1,1),   -- (PK) Identificador ˙nico de Solicitud 
-    Solicitante INT,                             -- (FK) Identificador ˙nico del usuario 
-    IdPieza INT,                                 -- (FK) Identificador de la Pieza 
-    FechaYHora DATETIME NOT NULL,                -- Fecha y hora del reporte 
-    Turno VARCHAR(20),                           -- Turno del solicitante 
-    Tipo VARCHAR(50),                            -- Mantenimiento/ReparaciÛn/Ajuste 
-    Detalles VARCHAR(MAX),                       -- DescripciÛn del problema 
-    Dibujo VARCHAR(255),                         -- Referencia visual o archivo 
-    Prioridad VARCHAR(20),                       -- Baja/Normal/Alta/Urgente 
-    EstadoActual VARCHAR(50),                    -- Pendiente/En proceso/Terminado 
-    
-    -- Restricciones de Llaves For·neas
-    FOREIGN KEY (Solicitante) REFERENCES Usuarios(IdUsuario),
-    FOREIGN KEY (IdPieza) REFERENCES Piezas(IdPieza)
+-- --------------------------------------------------------
+-- 4. Tabla: Solicitudes
+-- [Referencia: 1000305305.jpg]
+-- --------------------------------------------------------
+DROP TABLE IF EXISTS "Solicitudes";
+CREATE TABLE "Solicitudes" (
+    "IdSolicitud" INTEGER NOT NULL CONSTRAINT "PK_Solicitudes" PRIMARY KEY AUTOINCREMENT,
+    "SolicitanteId" INTEGER NOT NULL,
+    "IdPieza" INTEGER NOT NULL,
+    "FechaYHora" TEXT NOT NULL,
+    "Turno" TEXT NOT NULL,
+    "Tipo" TEXT NOT NULL,
+    "Detalles" TEXT NOT NULL,
+    "Dibujo" TEXT NOT NULL,
+    CONSTRAINT "FK_Solicitudes_Piezas_IdPieza" FOREIGN KEY ("IdPieza") REFERENCES "Piezas" ("IdPieza") ON DELETE CASCADE,
+    CONSTRAINT "FK_Solicitudes_Usuarios_SolicitanteId" FOREIGN KEY ("SolicitanteId") REFERENCES "Usuarios" ("IdUsuario") ON DELETE RESTRICT
 );
 
-
-CREATE TABLE EstadoTrabajo (
-    IdEstado INT PRIMARY KEY IDENTITY(1,1),    -- (PK) Identificador del registro de trabajo [cite: 14]
-    IdSolicitud INT UNIQUE,                    -- (FK) Solicitud Atendida. (UNIQUE para 1 registro por solicitud) [cite: 14]
-    IdMaquinista INT,                          -- (FK) Usuario que realiza el trabajo [cite: 14]
-    FechaYHoraDeInicio DATETIME,               -- Inicio de operaciÛn [cite: 14]
-    MaquinaAsignada VARCHAR(50),               -- Maquina usada en Machine Shop [cite: 14]
-    TiempoMaquina DECIMAL(10, 2),              -- Tiempo empleado [cite: 14]
-    Observaciones VARCHAR(MAX),                -- Notas adicionales [cite: 14]
-    
-    -- Restricciones de Llaves For·neas
-    FOREIGN KEY (IdSolicitud) REFERENCES Solicitudes(IdSolicitud),
-    FOREIGN KEY (IdMaquinista) REFERENCES Usuarios(IdUsuario)
+-- --------------------------------------------------------
+-- 5. Tabla: EstadoTrabajo
+-- [Referencia: 1000305302.jpg]
+-- --------------------------------------------------------
+DROP TABLE IF EXISTS "EstadoTrabajo";
+CREATE TABLE "EstadoTrabajo" (
+    "IdEstado" INTEGER NOT NULL CONSTRAINT "PK_EstadoTrabajo" PRIMARY KEY AUTOINCREMENT,
+    "IdSolicitud" INTEGER NOT NULL,
+    "IdMaquinista" INTEGER NOT NULL,
+    "FechaYHoraDeInicio" TEXT NOT NULL,
+    "FechaYHoraDeFin" TEXT NULL,
+    "MaquinaAsignada" TEXT NOT NULL,
+    "DescripcionOperacion" TEXT NOT NULL,
+    "TiempoMaquina" DECIMAL(10, 2) NOT NULL,
+    "Observaciones" TEXT NULL,
+    CONSTRAINT "FK_EstadoTrabajo_Solicitudes_IdSolicitud" FOREIGN KEY ("IdSolicitud") REFERENCES "Solicitudes" ("IdSolicitud") ON DELETE CASCADE,
+    CONSTRAINT "FK_EstadoTrabajo_Usuarios_IdMaquinista" FOREIGN KEY ("IdMaquinista") REFERENCES "Usuarios" ("IdUsuario") ON DELETE RESTRICT
 );
 
-CREATE TABLE Revision (
-    IdRevision INT PRIMARY KEY IDENTITY(1,1),  -- (PK) Identificador del registro de revisiÛn 
-    IdSolicitud INT UNIQUE,                    -- (FK) Solicitud a revisar (UNIQUE para 1 registro por solicitud) 
-    IdRevisor INT,                             -- (FK) Usuario que revisa y asigna prioridad 
-    NivelUrgencia VARCHAR(20),                 -- Baja/Media/Alta/CrÌtica 
-    EstadoRevision VARCHAR(50),                -- Aprobada/Devuelta/Requiere m·s info 
-    Comentarios VARCHAR(MAX),                  -- Notas del revisor 
-    FechaHoraRevision DATETIME,                -- Fecha y hora de la revisiÛn 
-    
-    -- Restricciones de Llaves For·neas
-    FOREIGN KEY (IdSolicitud) REFERENCES Solicitudes(IdSolicitud),
-    FOREIGN KEY (IdRevisor) REFERENCES Usuarios(IdUsuario)
+-- --------------------------------------------------------
+-- 6. Tabla: Revisiones
+-- [Referencia: 1000305304.jpg]
+-- --------------------------------------------------------
+DROP TABLE IF EXISTS "Revisiones";
+CREATE TABLE "Revisiones" (
+    "IdRevision" INTEGER NOT NULL CONSTRAINT "PK_Revisiones" PRIMARY KEY AUTOINCREMENT,
+    "IdSolicitud" INTEGER NOT NULL,
+    "IdRevisor" INTEGER NOT NULL,
+    "Prioridad" TEXT NOT NULL,
+    "Comentarios" TEXT NULL,
+    "FechaHoraRevision" TEXT NOT NULL,
+    CONSTRAINT "FK_Revisiones_Solicitudes_IdSolicitud" FOREIGN KEY ("IdSolicitud") REFERENCES "Solicitudes" ("IdSolicitud") ON DELETE CASCADE,
+    CONSTRAINT "FK_Revisiones_Usuarios_IdRevisor" FOREIGN KEY ("IdRevisor") REFERENCES "Usuarios" ("IdUsuario") ON DELETE CASCADE
 );
 
+-- --------------------------------------------------------
+-- 7. Tabla Historial de Migraciones
+-- [Referencia: 1000305307.jpg]
+-- --------------------------------------------------------
+CREATE TABLE IF NOT EXISTS "__EFMigrationsHistory" (
+    "MigrationId" TEXT NOT NULL CONSTRAINT "PK___EFMigrationsHistory" PRIMARY KEY,
+    "ProductVersion" TEXT NOT NULL
+);
 
+-- --------------------------------------------------------
+-- √çndices (Reconstruidos por convenci√≥n de EF Core)
+-- --------------------------------------------------------
+CREATE INDEX "IX_Areas_ResponsableAreaId" ON "Areas" ("ResponsableAreaId");
+CREATE INDEX "IX_Piezas_IdArea" ON "Piezas" ("IdArea");
+CREATE INDEX "IX_Solicitudes_IdPieza" ON "Solicitudes" ("IdPieza");
+CREATE INDEX "IX_Solicitudes_SolicitanteId" ON "Solicitudes" ("SolicitanteId");
+CREATE INDEX "IX_EstadoTrabajo_IdSolicitud" ON "EstadoTrabajo" ("IdSolicitud");
+CREATE INDEX "IX_EstadoTrabajo_IdMaquinista" ON "EstadoTrabajo" ("IdMaquinista");
+CREATE INDEX "IX_Revisiones_IdSolicitud" ON "Revisiones" ("IdSolicitud");
+CREATE INDEX "IX_Revisiones_IdRevisor" ON "Revisiones" ("IdRevisor");
+
+PRAGMA foreign_keys = ON;
