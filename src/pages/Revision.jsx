@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-// Se elimina Hourglass, ChevronDown y ListFilter
 import { Briefcase, Clock, Zap, AlertTriangle, Save, RefreshCw } from 'lucide-react'; 
 
 // --- IMPORTS CRÍTICAS ---
@@ -9,7 +8,6 @@ import API_BASE_URL from '../components/apiConfig';
 
 // URL de los Endpoints
 const API_SOLICITUDES_URL = `${API_BASE_URL}/Solicitudes`;
-// CAMBIO CRÍTICO: El endpoint POST es /api/Revision (según RevisionController.cs)
 const API_REVISION_URL = `${API_BASE_URL}/Revision`; 
 
 // Componente para una celda de tabla (reutilizado)
@@ -28,7 +26,9 @@ const getPriorityClasses = (priority) => {
         case "Alta": return "text-red-700 bg-red-100 font-medium";
         case "Media": return "text-yellow-700 bg-yellow-100 font-medium";
         case "Baja": return "text-green-700 bg-green-100 font-medium";
-        case "En Revisión": return "text-gray-700 bg-gray-200 font-medium";
+        case "En Revisión": 
+        case "Pendiente": 
+            return "text-gray-700 bg-gray-200 font-medium";
         default: return "text-gray-700 bg-gray-100";
     }
 };
@@ -88,71 +88,109 @@ export default function Revision() {
     }, [isAuthenticated]); 
 
     // ----------------------------------------------------------------------
-    // --- LÓGICA DE FILTRADO (CORREGIDA) ---
+    // --- LÓGICA DE FILTRADO (Por Prioridad Pendiente/En Revisión) ---
     // ----------------------------------------------------------------------
-
     const filteredSolicitudes = useMemo(() => {
-        // CAMBIO CRÍTICO: Filtrar por la propiedad correcta 'estadoOperacional'
-        const PENDING_STATE = "En Revisión"; 
+        // Valores que indican que la solicitud aún no ha sido revisada por Ingeniería
+        const PENDING_PRIORITY_VALUES = ["en revisión", "pendiente", null, undefined, ""]; 
+        
         return solicitudes
-            .filter(s => s.estadoOperacional === PENDING_STATE)
+            .filter(s => {
+                const currentPriority = s.prioridadActual ? s.prioridadActual.toLowerCase().trim() : '';
+                
+                // Si la prioridad es 'null', 'undefined', o '""' (vacío), o si es "en revisión"/"pendiente"
+                return PENDING_PRIORITY_VALUES.includes(currentPriority);
+            }) 
             .sort((a, b) => new Date(a.fechaYHora) - new Date(b.fechaYHora)); 
     }, [solicitudes]);
-
-    // Seleccionar una solicitud para revisión y precargar los datos
+    
+    // ----------------------------------------------------------------------
+    // --- MANEJO DE SELECCIÓN Y DATOS DEL FORMULARIO ---
+    // ----------------------------------------------------------------------
     const handleSelectSolicitud = (solicitud) => {
         setSelectedSolicitud(solicitud);
+        
+        // Determinar la prioridad inicial para el formulario
+        const initialPriority = (solicitud.prioridadActual === "En Revisión" || solicitud.prioridadActual === "Pendiente" || !solicitud.prioridadActual)
+            ? 'Media' // Sugerencia inicial
+            : solicitud.prioridadActual; 
+            
         setRevisionData({
-            // Usamos la prioridad actual o 'Media' como default
-            prioridad: solicitud.prioridadActual === "En Revisión" ? 'Media' : solicitud.prioridadActual, 
+            prioridad: initialPriority, 
             comentarios: '',
         });
     };
 
     const handleFormChange = (e) => {
         const { name, value } = e.target;
-        // No hay lógica especial para el tipo de campo ya que eliminamos el número
         setRevisionData(prev => ({ ...prev, [name]: value }));
     };
 
     // ----------------------------------------------------------------------
-    // --- LÓGICA DE ENVÍO (POST /api/Revision) ---
+    // --- LÓGICA DE ENVÍO Y UPSERT (POST + Manejo de 409 con PUT) ---
     // ----------------------------------------------------------------------
+    
+    // Función auxiliar para realizar la petición
+    const executeRevisionRequest = async (method, url, dto) => {
+        const token = localStorage.getItem('authToken');
+        return fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify(dto),
+        });
+    };
+    
     const handleSaveRevision = async (e) => {
         e.preventDefault();
         if (!selectedSolicitud || isSaving) return;
 
-        // 1. Construir el DTO para el POST
         const revisionDto = {
             idSolicitud: selectedSolicitud.id, 
-            idRevisor: user.id, // Obtenido del contexto
+            idRevisor: user.id, 
             prioridad: revisionData.prioridad,
             comentarios: revisionData.comentarios || null,
         };
         
         setIsSaving(true);
-        const token = localStorage.getItem('authToken');
-
+        let response;
+        let methodToUse = 'POST'; // Inicialmente intentamos crear (POST)
+        
         try {
-            // CAMBIO CRÍTICO: Usamos el endpoint /api/Revision
-            const response = await fetch(API_REVISION_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
-                },
-                body: JSON.stringify(revisionDto),
-            });
+            // 1. --- Intento Inicial: POST (Crear la revisión inicial) ---
+            response = await executeRevisionRequest(methodToUse, API_REVISION_URL, revisionDto);
 
+            // 2. --- Manejo del 409 Conflict: Fallback a PUT (Actualizar) ---
+            if (!response.ok && response.status === 409) {
+                console.log("POST falló con 409. Intentando PUT (Actualización)...");
+                
+                methodToUse = 'PUT';
+                // En PUT, la URL debe incluir el ID de la solicitud a actualizar
+                const putUrl = `${API_REVISION_URL}/${selectedSolicitud.id}`; 
+                
+                // --- Intento 2: PUT (Actualizar la revisión existente) ---
+                response = await executeRevisionRequest(methodToUse, putUrl, revisionDto);
+            }
+            
+            // --- Manejo de la Respuesta Final (éxito o error después del fallback) ---
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.message || `Fallo al registrar la revisión. Código: ${response.status}`);
+                const errorText = await response.text();
+                let errorMessage = `Fallo al ${methodToUse === 'POST' ? 'crear' : 'actualizar'} la revisión. Código: ${response.status}`;
+                try {
+                    const errorData = JSON.parse(errorText);
+                    errorMessage = errorData.message || errorData.title || errorMessage;
+                } catch {
+                    errorMessage = `${errorMessage}. Detalles: ${errorText.substring(0, 100)}...`;
+                }
+                throw new Error(errorMessage);
             }
 
-            // Éxito:
-            alert(`Revisión de Solicitud #${selectedSolicitud.id} guardada exitosamente. El estado ha cambiado.`);
+            // --- Éxito ---
+            alert(`Revisión de Solicitud #${selectedSolicitud.id} guardada/actualizada con éxito. El estado ha cambiado a Aprobada.`);
             
-            // 2. Limpiar el estado y recargar la lista
+            // 3. Limpiar el estado y recargar la lista
             setSelectedSolicitud(null);
             await fetchSolicitudes(); 
             
@@ -163,6 +201,8 @@ export default function Revision() {
             setIsSaving(false);
         }
     };
+    // ----------------------------------------------------------------------
+
 
     // --- Card de Solicitud en lista ---
     const RevisionRow = ({ solicitud }) => (
@@ -171,16 +211,17 @@ export default function Revision() {
             className={`cursor-pointer border-b border-gray-100 transition duration-150 ${selectedSolicitud?.id === solicitud.id ? 'bg-indigo-50 border-indigo-400 shadow-inner' : 'hover:bg-gray-50'}`}
         >
             <Td className="font-semibold text-indigo-600">{solicitud.id}</Td>
-            {/* Acceso directo a propiedades planas del DTO */}
             <Td>{solicitud.piezaNombre} ({solicitud.maquina})</Td> 
             <Td className="text-gray-500">{solicitud.solicitanteNombre}</Td> 
             <Td>
-                <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border ${getPriorityClasses(solicitud.prioridadActual)}`}>
-                    {solicitud.prioridadActual || 'N/A'} 
+                {/* Mostramos la prioridad actual, que será "En Revisión" o "Pendiente" */}
+                <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border ${getPriorityClasses(solicitud.prioridadActual || 'Pendiente')}`}>
+                    {solicitud.prioridadActual || 'Pendiente'} 
                 </span>
             </Td>
-            {/* Uso de estadoOperacional para la columna de estado */}
-            <Td className={`font-medium ${solicitud.estadoOperacional === 'En Revisión' ? 'text-red-600' : 'text-green-600'}`}>{solicitud.estadoOperacional}</Td>
+            <Td className={`font-medium ${(solicitud.estadoOperacional === 'En Revisión' || solicitud.estadoOperacional === 'Pendiente') ? 'text-red-600' : 'text-green-600'}`}>
+                {solicitud.estadoOperacional}
+            </Td>
             <Td className="text-gray-500">{new Date(solicitud.fechaYHora).toLocaleDateString()}</Td>
         </tr>
     );
@@ -207,7 +248,7 @@ export default function Revision() {
                 </div>
                 
                 <p className="text-sm text-gray-600 mb-4">
-                    Mostrando solo solicitudes con estado **"En Revisión"** que requieren tu validación.
+                    Mostrando solo solicitudes con prioridad **"En Revisión"** o **"Pendiente"** que requieren tu validación y asignación de prioridad.
                 </p>
 
                 {/* Info de cantidad */}
@@ -239,8 +280,8 @@ export default function Revision() {
                             ) : (
                                 <tr>
                                     <Td colSpan="6" className="text-center py-8 text-gray-500">
-                                        <Clock size={24} className="mx-auto mb-2 text-green-500"/>
-                                        ¡No hay solicitudes pendientes de revisión de Ingeniería!
+                                        <Clock size={24} className="mx-auto mb-3 text-green-500"/>
+                                        ¡No hay solicitudes pendientes de revisión!
                                     </Td>
                                 </tr>
                             )}
