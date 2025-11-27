@@ -60,7 +60,6 @@ const calculateDaysOpen = (fechaCreacion) => {
 function SolicitudTableRow({ solicitud }) {
     const navigate = useNavigate();
     
-    // 🚨 Eliminada 'fechaCompromiso'
     const { 
         id, 
         piezaNombre, 
@@ -70,7 +69,6 @@ function SolicitudTableRow({ solicitud }) {
         estadoOperacional, // Estado de la fase del proceso (Viene del DTO de la API)
         fechaYHora, 
         responsable, 
-        // fechaCompromiso eliminada
     } = solicitud;
     
     // 🚨 LÓGICA CLAVE: Separar Prioridad (Urgencia) de Estado (Fase) 🚨
@@ -80,10 +78,8 @@ function SolicitudTableRow({ solicitud }) {
     if (!estadoOperacional || estadoOperacional === 'Pendiente' || prioridadActual === 'Pendiente' || !prioridadActual) {
         displayEstado = "En Revisión";
     } 
-    // Si el DTO de la API repite la prioridad en el campo de estado (el problema reportado)
-    // y la prioridad YA FUE ASIGNADA (o sea, es diferente de En Revisión/Pendiente)
+    // Si el DTO de la API repite la prioridad en el campo de estado 
     else if (['Baja', 'Media', 'Alta', 'Urgente', 'Crítica'].includes(estadoOperacional) && estadoOperacional === prioridadActual) {
-        // Asumimos que si tiene prioridad asignada, ya fue Aprobada o está en cola.
         displayEstado = "Aprobada / En Cola";
     } 
     // Si el DTO viene con estados correctos, los mantenemos
@@ -94,6 +90,19 @@ function SolicitudTableRow({ solicitud }) {
 
     // Cálculo de días abierto
     const diasAbierto = useMemo(() => calculateDaysOpen(fechaYHora), [fechaYHora]);
+
+    // 🚨 LÓGICA MODIFICADA PARA DÍAS ABIERTOS 🚨
+    // Muestra días solo si la prioridad es diferente de 'En Revisión' o 'Pendiente' (o es null)
+    const isEnRevision = prioridadActual === 'En Revisión' || prioridadActual === 'Pendiente' || !prioridadActual;
+    
+    // Contenido a mostrar
+    const daysContent = isEnRevision ? '—' : (diasAbierto ? `${diasAbierto} días` : '—');
+    
+    // Clase de color para el texto
+    const daysColorClass = isEnRevision 
+        ? 'text-gray-500' // Gris si está en revisión/pendiente
+        : (diasAbierto > 20 ? 'text-red-600' : 'text-green-600'); // Rojo/Verde si ya fue asignada
+    // 🚨 FIN LÓGICA MODIFICADA 🚨
 
     return (
         <tr className="border-b border-gray-100 hover:bg-gray-50 transition duration-150">
@@ -114,9 +123,10 @@ function SolicitudTableRow({ solicitud }) {
 
             {/* CAMPOS ADICIONALES */}
             <Td>{responsable || "—"}</Td> 
-            {/* 🚨 Eliminada columna de Fecha Compromiso */}
-            <Td className={`font-medium ${diasAbierto > 20 ? 'text-red-600' : 'text-green-600'}`}>
-                {diasAbierto ? `${diasAbierto} días` : '—'}
+            
+            {/* 🚨 COLUMNA DÍAS ABIERTO: Usa la lógica condicional */}
+            <Td className={`font-medium ${daysColorClass}`}>
+                {daysContent}
             </Td>
             
             {/* ACCIONES (Solo Ver Más) */}
@@ -239,14 +249,14 @@ export default function Dashboard() {
             return;
         }
 
-        // 🚨 ENCABEZADOS NORMALIZADOS: Eliminada "Fecha Compromiso"
+        // 🚨 ENCABEZADOS NORMALIZADOS
         const exportHeaders = [
             "ID Solicitud", "Fecha Creación", "Hora Creación", "Solicitante", 
             "Pieza", "Máquina", "Tipo Solicitud", "Prioridad Asignada", "Estado Actual", 
             "Responsable Asignado", "Días Abierto", "Descripción Completa"
         ];
         
-        // 🚨 CLAVES DE DTO ASOCIADAS: Eliminada "fechaCompromiso"
+        // 🚨 CLAVES DE DTO ASOCIADAS
         const exportKeys = [
             "id", "fechaCreacion", "horaCreacion", "solicitanteNombre", 
             "piezaNombre", "maquina", "tipo", "prioridadActual", "estadoOperacional", 
@@ -263,7 +273,6 @@ export default function Dashboard() {
 
             // Calcular Días Abierto
             const diasAbierto = calculateDaysOpen(solicitud.fechaYHora);
-            // La lógica para fechaCompromiso fue eliminada
             
             return {
                 ...solicitud, // Copia los campos existentes
@@ -402,7 +411,6 @@ export default function Dashboard() {
                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prioridad</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Responsable</th>
-                                {/* 🚨 Eliminada columna de Fecha Compromiso */}
                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Días Abierto</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
                             </tr>
@@ -410,14 +418,12 @@ export default function Dashboard() {
                         <tbody className="bg-white divide-y divide-gray-200">
                             {loadingSolicitudes ? (
                                 <tr>
-                                    {/* 🚨 colSpan ajustado de 9 a 8 */}
                                     <Td colSpan="8" className="text-center py-8 text-indigo-500">Cargando solicitudes...</Td>
                                 </tr>
                             ) : filteredSolicitudes.length > 0 ? (
                                 filteredSolicitudes.map((s) => <SolicitudTableRow key={s.id} solicitud={s} />)
                             ) : (
                                 <tr>
-                                    {/* 🚨 colSpan ajustado de 9 a 8 */}
                                     <Td colSpan="8" className="text-center py-8 text-gray-500">
                                         No hay solicitudes que coincidan con los filtros.
                                     </Td>
