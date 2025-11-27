@@ -3,7 +3,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import API_BASE_URL from '../components/apiConfig'; 
 
 // 🚨 ID FIJO PARA SIMULACIÓN: Modifique este valor para cambiar el usuario de prueba.
-const FIXED_USER_ID = 4; 
+const FIXED_USER_ID = 1; 
 
 // 1. Crear el Contexto
 const AuthContext = createContext(null);
