@@ -1,6 +1,5 @@
 import React from "react";
 import { PlusCircle, Edit, Trash2, AlertTriangle, Settings, Home, Users } from "lucide-react";
-import NotificacionesPanel from "./components/NotificacionesPanel";
 export default function App() {
   return (
     <div className="flex h-screen">
@@ -26,7 +25,7 @@ export default function App() {
 
 {/* Panel de notificaciones como tarjeta visible */}
 <div className="mb-6">
-  <NotificacionesPanel />
+
 </div>
 
         {/* Botones de acción */}

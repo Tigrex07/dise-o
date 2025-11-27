@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -48,7 +47,9 @@ export default function Login() {
                   WT
                 </div>
                 <div>
-                  <h1 className="text-4xl font-extrabold leading-tight">Work Orders Tracker</h1>
+                  <h1 className="text-4xl font-extrabold leading-tight">
+                    Work Orders Tracker
+                  </h1>
                   <p className="text-lg text-gray-600 mt-1">
                     Acceso profesional para la gestión y seguimiento de órdenes de trabajo
                   </p>
@@ -58,7 +59,10 @@ export default function Login() {
 
             <form onSubmit={handleSubmit} className="space-y-6" noValidate>
               {error && (
-                <div role="alert" className="text-sm text-red-700 bg-red-50 border border-red-100 px-4 py-2 rounded-md">
+                <div
+                  role="alert"
+                  className="text-sm text-red-700 bg-red-50 border border-red-100 px-4 py-2 rounded-md"
+                >
                   {error}
                 </div>
               )}
@@ -110,12 +114,7 @@ export default function Login() {
                   />
                   <span>Recordarme</span>
                 </label>
-
-                <Link to="/reset-password" className="text-sm text-blue-600 hover:underline">
-      ¿Olvidaste tu contraseña?
-    </Link>
-  </div>
-
+              </div>
 
               <div>
                 <button
@@ -126,21 +125,14 @@ export default function Login() {
                   {loading ? "Cargando..." : "Iniciar sesión"}
                 </button>
               </div>
-<div className="text-center mt-4">
-  <span className="text-sm text-gray-600">
-    ¿No tienes cuenta aún?{" "}
-    <Link to="/registro" className="text-blue-600 hover:underline font-medium">
-      Regístrate aquí
-    </Link>
-  </span>
-</div>
+
               <div className="pt-2 text-xs text-gray-400">
                 Acceso autorizado exclusivamente con correo institucional.
               </div>
             </form>
           </div>
 
-          {/* RIGHT: Blue pastel panel (solo el cuadro azul) */}
+          {/* RIGHT: Blue pastel panel */}
           <div className="px-6">
             <div className="rounded-xl border border-gray-100 p-8 bg-white h-full">
               <div className="rounded-lg p-6 bg-gradient-to-br from-blue-50 to-blue-100 shadow-sm border border-blue-100">
@@ -154,13 +146,12 @@ export default function Login() {
 
                 <hr className="my-6 border-t border-blue-200" />
 
-                
-<div className="text-base text-slate-700 p-4 rounded-lg bg-gradient-to-br from-blue-100 via-blue-50 to-white border border-blue-100 shadow-sm">
-  <div className="font-medium text-slate-800">Acceso</div>
-  <div className="mt-2 text-sm text-slate-700">
-    Ingresa con tu correo institucional. Para altas o permisos, contacta al administrador de planta.
-  </div>
-</div>
+                <div className="text-base text-slate-700 p-4 rounded-lg bg-gradient-to-br from-blue-100 via-blue-50 to-white border border-blue-100 shadow-sm">
+                  <div className="font-medium text-slate-800">Acceso</div>
+                  <div className="mt-2 text-sm text-slate-700">
+                    Ingresa con tu correo institucional. Para altas o permisos, contacta al administrador de planta.
+                  </div>
+                </div>
 
                 <div className="mt-8 text-sm text-slate-500">
                   Plataforma diseñada para operaciones de maquila: profesional, intuitiva y segura.
@@ -169,7 +160,7 @@ export default function Login() {
             </div>
           </div>
         </div>
-      </div> 
+      </div>
     </div>
   );
 }

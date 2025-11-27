@@ -1,7 +1,7 @@
 import React from "react";
 // Importaciones de iconos de Lucide
 import { PlusCircle, Edit, Trash2, AlertTriangle, Settings, Home, Users } from "lucide-react";
-import NotificacionesPanel from "./components/NotificacionesPanel";
+
 // --- COMPONENTE PRINCIPAL ---
 export default function App() {
   return (

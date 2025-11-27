@@ -76,7 +76,9 @@ export default function TrabajoDetail() {
         "Torno",
         "Erosionadora",
         "Soldadura Tic",
-        "Soldadura Laser"
+        "Soldadura Laser",
+        "Set-Up",
+        "Mantenimiento de moldes"
       ].map(maquina => (
         <div key={maquina} className="flex items-center gap-4">
           <label className="w-48 font-medium text-gray-700">{maquina}</label>

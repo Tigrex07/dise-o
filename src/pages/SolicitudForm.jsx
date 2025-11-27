@@ -27,7 +27,7 @@ const API_PIEZAS_URL = `${API_BASE_URL}/Piezas`;
 // ----------------------------------------------------------------------
 // OPCIONES DEL FORMULARIO
 // ----------------------------------------------------------------------
-const TIPO_OPTIONS = ['Preventivo', 'Correctivo', 'Mejora', 'Inventario'];
+const TIPO_OPTIONS = ['Reparacion', 'Modificacion', 'Fabricacion', 'Set-Up'];
 const TURNO_OPTIONS = ['Mañana', 'Tarde', 'Noche'];
 
 // ----------------------------------------------------------------------
