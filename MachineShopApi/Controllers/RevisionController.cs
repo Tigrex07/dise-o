@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MachineShopApi.Models;
-using MachineShopApi.DTOs; // Asegúrate de tener RevisionCreationDto
+using MachineShopApi.DTOs;
 using MachineShopApi.Data;
 using System.Collections.Generic;
 using System.Linq;
@@ -39,6 +39,7 @@ namespace MachineShopApi.Controllers
             var revisionExistente = await _context.Revisiones.AnyAsync(r => r.IdSolicitud == revisionDto.IdSolicitud);
             if (revisionExistente)
             {
+                // Este es el error 409 que el frontend maneja con un fallback a PUT
                 return Conflict("Ya existe un registro de revisión para esta solicitud.");
             }
 
@@ -47,7 +48,6 @@ namespace MachineShopApi.Controllers
             {
                 IdSolicitud = revisionDto.IdSolicitud,
                 IdRevisor = revisionDto.IdRevisor,
-                // 🚨 CORREGIDO CS1061 (Línea 42 y 58): Usar Prioridad, no NivelUrgencia
                 Prioridad = revisionDto.Prioridad,
                 Comentarios = revisionDto.Comentarios,
                 FechaHoraRevision = DateTime.Now
@@ -55,8 +55,7 @@ namespace MachineShopApi.Controllers
 
             _context.Revisiones.Add(revision);
 
-            // 3. 💡 FLUJO DE ESTADO: Crear un nuevo registro en EstadoTrabajo que indique el cambio de estado
-            // Usamos Id=1 (Usuario de Sistema) para el estado inicial (que se creó con 'En Revisión').
+            // 3. FLUJO DE ESTADO: Crear un nuevo registro en EstadoTrabajo
             int idMaquinistaSistema = 1;
 
             var nuevoEstado = new EstadoTrabajo
@@ -66,27 +65,102 @@ namespace MachineShopApi.Controllers
                 MaquinaAsignada = "N/A",
 
                 FechaYHoraDeInicio = DateTime.Now,
-                FechaYHoraDeFin = null, // Como es solo un cambio de estado, el tiempo de máquina es 0/NULL
+                FechaYHoraDeFin = null,
 
                 DescripcionOperacion = $"Revisión de Ingeniería: Prioridad {revision.Prioridad}",
                 TiempoMaquina = 0,
                 Observaciones = "Prioridad y comentarios de ingeniería establecidos."
             };
 
-            // 🚨 IMPORTANTE: Usar el DbSet correcto que es 'EstadoTrabajo' (no EstadoTrabajos)
             _context.EstadoTrabajo.Add(nuevoEstado);
 
             await _context.SaveChangesAsync();
 
-            // 🚨 CORREGIDO CS1061 (Línea 63): Usar Id (PK del modelo), no IdRevision
             return CreatedAtAction(nameof(GetRevision), new { id = revision.Id }, revision);
+        }
+
+        // ------------------------------------------------------------------
+        // 🚀 MÉTODO PUT: Actualizar la Revisión existente
+        // Ruta: PUT api/Revision/{idSolicitud}
+        // ------------------------------------------------------------------
+        [HttpPut("{idSolicitud}")]
+        public async Task<IActionResult> PutRevision(int idSolicitud, RevisionCreationDto revisionDto)
+        {
+            if (idSolicitud != revisionDto.IdSolicitud)
+            {
+                return BadRequest("El ID de Solicitud en la ruta no coincide con el cuerpo de la solicitud.");
+            }
+
+            // 1. Buscar la revisión existente por IdSolicitud (Relación 1:1)
+            var revision = await _context.Revisiones
+                .FirstOrDefaultAsync(r => r.IdSolicitud == idSolicitud);
+
+            if (revision == null)
+            {
+                return NotFound($"No se encontró una revisión para la Solicitud ID {idSolicitud}.");
+            }
+
+            // 2. Validar que el revisor exista
+            var revisorExiste = await _context.Usuarios.AnyAsync(u => u.Id == revisionDto.IdRevisor);
+
+            if (!revisorExiste)
+            {
+                return BadRequest("El ID de Revisor proporcionado no es válido.");
+            }
+
+            // 3. Aplicar los cambios al modelo existente
+            revision.Prioridad = revisionDto.Prioridad;
+            revision.Comentarios = revisionDto.Comentarios;
+            revision.IdRevisor = revisionDto.IdRevisor;
+            revision.FechaHoraRevision = DateTime.Now;
+
+            _context.Entry(revision).State = EntityState.Modified;
+
+            try
+            {
+                // 4. Actualizar la revisión en la base de datos
+                await _context.SaveChangesAsync();
+
+                // 5. FLUJO DE ESTADO: Crear un nuevo registro en EstadoTrabajo
+                int idMaquinistaSistema = 1;
+
+                var nuevoEstado = new EstadoTrabajo
+                {
+                    IdSolicitud = revision.IdSolicitud,
+                    IdMaquinista = idMaquinistaSistema,
+                    MaquinaAsignada = "N/A",
+
+                    FechaYHoraDeInicio = DateTime.Now,
+                    FechaYHoraDeFin = null,
+
+                    DescripcionOperacion = $"Revisión de Ingeniería ACTUALIZADA: Prioridad {revision.Prioridad}",
+                    TiempoMaquina = 0,
+                    Observaciones = "Prioridad y comentarios de ingeniería re-establecidos."
+                };
+
+                _context.EstadoTrabajo.Add(nuevoEstado);
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                // 🚨 CORRECCIÓN: Usamos la llamada directa a AnyAsync para la verificación
+                if (!await _context.Revisiones.AnyAsync(e => e.IdSolicitud == idSolicitud))
+                {
+                    return NotFound();
+                }
+                else
+                {
+                    throw;
+                }
+            }
+
+            return NoContent();
         }
 
         // GET: api/Revision/5
         [HttpGet("{id}")]
         public async Task<ActionResult<Revision>> GetRevision(int id)
         {
-            // 🚨 CORREGIDO: Usar Id, no IdRevision
             var revision = await _context.Revisiones.FindAsync(id);
 
             if (revision == null)
@@ -97,7 +171,6 @@ namespace MachineShopApi.Controllers
             return revision;
         }
 
-        // Otros métodos (GET ALL, PUT, DELETE) deben ser implementados.
-        // El método PUT debe usar el DTO de actualización y el campo Prioridad.
+        // NOTA: La función auxiliar RevisionExists fue eliminada para evitar el error de compilación.
     }
 }
