@@ -1,146 +1,348 @@
-import React, { useState } from "react";
-import { PlusCircle, Edit, Trash2, MapPin } from "lucide-react";
+// src/pages/Areas.jsx (Part 1)
+import React, { useState, useEffect, useCallback } from "react";
+import {
+  MapPin, PlusCircle, Edit, XCircle,
+  Loader2, RefreshCw, AlertTriangle, Save, X
+} from "lucide-react";
+import { useAuth } from "../context/AuthContext";
+import API_BASE_URL from "../components/apiConfig";
 
-const MOCK = [
-  { id: 1, nombre: "Producción" },
-  { id: 2, nombre: "Mantenimiento" },
-  { id: 3, nombre: "Calidad" },
-];
+const API_AREAS_URL = `${API_BASE_URL}/areas`;
+const API_RESPONSABLES_URL = `${API_BASE_URL}/usuarios`; // ajusta si tu endpoint es distinto
 
-export default function Areas() {
-  const [items, setItems] = useState(MOCK);
-  const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState(null);
-  const [nombre, setNombre] = useState("");
+// Normaliza datos del backend (camelCase)
+function normalizeArea(a) {
+  return {
+    idArea: a.id ?? null,
+    nombreArea: a.nombreArea ?? "",
+    responsableAreaId: a.responsableAreaId ?? null,
+    responsableAreaNombre: a.responsableArea?.nombre ?? null,
+    responsableAreaDepto: a.responsableArea?.area ?? null,
+  };
+}
 
-  function openNew() { setEditing(null); setNombre(""); setShowModal(true); }
-  function openEdit(i) { setEditing(i); setNombre(i.nombre); setShowModal(true); }
-  function save() {
-    if (!nombre.trim()) return alert("Escribe un nombre");
-    if (editing) setItems(items.map(it => it.id === editing.id ? { ...it, nombre } : it));
-    else setItems([{ id: Date.now(), nombre }, ...items]);
-    setShowModal(false);
-  }
-  function remove(id) {
-    if (!confirm("¿Eliminar área?")) return;
-    setItems(items.filter(i => i.id !== id));
-  }
+// Payload para crear/editar (camelCase que espera tu API)
+function buildAreaPayload(formOrItem) {
+  return {
+    id: formOrItem.idArea ?? undefined, // incluir solo en PUT
+    nombreArea: formOrItem.nombreArea,
+    responsableAreaId: formOrItem.responsableAreaId,
+  };
+}
+// src/pages/Areas.jsx (Part 2)
+function AreasFormModal({ isOpen, areaToEdit, onClose, onSave }) {
+  const isEditing = !!areaToEdit;
+  const [formData, setFormData] = useState({ nombreArea: "" });
+  const [responsables, setResponsables] = useState([]);
+  const [selectedResponsable, setSelectedResponsable] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [formError, setFormError] = useState(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // Reset y precarga de valores
+    setFormError(null);
+    setFormData({ nombreArea: isEditing && areaToEdit ? areaToEdit.nombreArea ?? "" : "" });
+    setSelectedResponsable(
+      isEditing && areaToEdit?.responsableAreaId ? String(areaToEdit.responsableAreaId) : ""
+    );
+
+    // Cargar responsables activos
+    (async () => {
+      try {
+        const res = await fetch(API_RESPONSABLES_URL);
+        const raw = await res.json();
+        const list = Array.isArray(raw) ? raw.filter(u => u.activo) : [];
+        setResponsables(list);
+      } catch {
+        setResponsables([]);
+      }
+    })();
+  }, [isOpen, isEditing, areaToEdit]);
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.nombreArea.trim()) {
+      setFormError("El nombre del área es obligatorio.");
+      return;
+    }
+    if (!selectedResponsable) {
+      setFormError("Debes seleccionar un responsable.");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await onSave(
+        {
+          ...(isEditing && { idArea: areaToEdit.idArea }),
+          nombreArea: formData.nombreArea.trim(),
+          responsableAreaId: Number(selectedResponsable),
+        },
+        isEditing
+      );
+      onClose();
+    } catch (err) {
+      setFormError(err.message || "Error al guardar el área.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
-    <div className="w-full">
+    <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-gray-900/60 p-4">
+      <div className="bg-white rounded-2xl shadow-3xl w-full max-w-lg">
+        <div className="p-6">
+          <div className="flex items-center justify-between border-b pb-3 mb-4">
+            <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+              <MapPin className="text-blue-600" />
+              {isEditing ? "Editar Área" : "Nueva Área"}
+            </h3>
+            <button onClick={onClose} disabled={isSaving} className="text-gray-400 hover:text-gray-600">
+              <X size={20} />
+            </button>
+          </div>
 
-      {/* ENCABEZADO */}
-      <h1 className="text-3xl font-bold mb-4 flex items-center gap-3">
-        <MapPin size={28} className="text-blue-600" />
-        Administración de Áreas
-      </h1>
+          <form onSubmit={handleSubmit}>
+            {formError && (
+              <div className="p-3 mb-4 text-sm text-red-700 bg-red-100 rounded-lg flex items-center">
+                <AlertTriangle size={16} className="mr-2" />
+                {formError}
+              </div>
+            )}
 
-      <p className="text-gray-600 mb-8 text-lg">
-        Gestión del catálogo de áreas activas en la organización.
-      </p>
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del Área *</label>
+              <input
+                type="text"
+                name="nombreArea"
+                value={formData.nombreArea}
+                onChange={(e) => setFormData({ nombreArea: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+                required
+              />
+            </div>
 
-      {/* CARD PRINCIPAL */}
-      <div className="bg-white shadow-xl rounded-xl border border-gray-200 p-6">
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Responsable *</label>
+              <select
+                value={selectedResponsable}
+                onChange={(e) => setSelectedResponsable(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500"
+                required
+              >
+                <option value="">Selecciona un responsable</option>
+                {responsables.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.nombre} {r.area ? `(${r.area})` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-        {/* BOTÓN SUPERIOR */}
-        <div className="flex justify-between items-center mb-5">
-          <h2 className="text-xl font-semibold text-gray-800">Listado de Áreas</h2>
+            <div className="flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isSaving}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={isSaving}
+                className="flex items-center px-4 py-2 text-sm font-medium bg-blue-600 rounded-lg hover:bg-blue-700 shadow-lg text-white"
+              >
+                {isSaving ? <Loader2 size={16} className="mr-2 animate-spin" /> : <Save size={16} className="mr-2" />}
+                {isEditing ? "Guardar Cambios" : "Crear Área"}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+// src/pages/Areas.jsx (Part 3)
+export default function Areas() {
+  const { user } = useAuth();
+  const [areas, setAreas] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingArea, setEditingArea] = useState(null);
 
+  const authHeader = user?.token ? { Authorization: `Bearer ${user.token}` } : {};
+
+  const fetchAreas = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(API_AREAS_URL, {
+        headers: { "Content-Type": "application/json", ...authHeader },
+      });
+      if (!response.ok) throw new Error("Error al cargar áreas.");
+      const raw = await response.json();
+      const data = Array.isArray(raw) ? raw.map(normalizeArea) : [];
+      setAreas(data);
+    } catch (err) {
+      setError(err.message);
+      setAreas([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user?.token]);
+
+  useEffect(() => { fetchAreas(); }, [fetchAreas]);
+
+  const handleSaveArea = async (area, isEditing) => {
+    const method = isEditing ? "PUT" : "POST";
+    const url = isEditing ? `${API_AREAS_URL}/${area.idArea}` : API_AREAS_URL;
+    const payload = buildAreaPayload(area);
+
+    const response = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json", ...authHeader },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      let msg = "Error al guardar área.";
+      if (response.status === 401) msg = "Sesión expirada. Inicia sesión de nuevo.";
+      if (response.status === 400) {
+        try {
+          const body = await response.json();
+          if (body?.message) msg = body.message;
+        } catch {}
+      }
+      throw new Error(msg);
+    }
+    await fetchAreas();
+  };
+
+  const handleEdit = (area) => {
+    setEditingArea(area);
+    setIsModalOpen(true);
+  };
+
+  const handleDelete = async (area) => {
+    if (!window.confirm(`¿Eliminar el área "${area.nombreArea}"?`)) return;
+    const response = await fetch(`${API_AREAS_URL}/${area.idArea}`, {
+      method: "DELETE",
+      headers: authHeader,
+    });
+    if (!response.ok) {
+      const msg = response.status === 401 ? "Sesión expirada. Inicia sesión de nuevo." : "Error al eliminar área.";
+      setError(msg);
+      return;
+    }
+    await fetchAreas();
+  };
+
+  return (
+    <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100 min-h-full">
+      <header className="flex justify-between items-center mb-6 border-b pb-4">
+        <h2 className="text-2xl font-extrabold text-slate-800 flex items-center">
+          <MapPin className="w-6 h-6 mr-3 text-blue-600" />
+          Catálogo de Áreas
+        </h2>
+        <div className="flex space-x-3">
           <button
-            onClick={openNew}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition"
+            onClick={() => { setEditingArea(null); setIsModalOpen(true); }}
+            className="flex items-center px-4 py-2 bg-blue-600 text-white font-semibold rounded-xl shadow-md hover:bg-blue-700"
           >
-            <PlusCircle size={18} /> Nueva Área
+            <PlusCircle size={20} className="mr-2" /> Nueva Área
+          </button>
+          <button
+            onClick={fetchAreas}
+            className="p-2 rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100"
+          >
+            <RefreshCw size={20} />
           </button>
         </div>
+      </header>
 
-        {/* TABLA */}
-        <div className="overflow-hidden rounded-lg border border-gray-200">
-          <table className="min-w-full">
-            <thead className="bg-gray-100">
-              <tr>
-                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700">ID</th>
-                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700">Área</th>
-                <th className="text-left px-4 py-3 text-sm font-semibold text-gray-700">Acciones</th>
-              </tr>
-            </thead>
+      {isLoading && (
+        <div className="p-4 mb-4 text-center text-blue-700 bg-blue-100 rounded-lg flex items-center justify-center">
+          <Loader2 size={20} className="mr-2 animate-spin" />
+          Cargando áreas...
+        </div>
+      )}
+      {error && (
+        <div className="p-4 mb-4 text-red-700 bg-red-100 rounded-lg flex items-center">
+          <AlertTriangle size={20} className="mr-2" />
+          Error: {error}
+        </div>
+      )}
 
-            <tbody>
-              {items.map(i => (
+      <div className="overflow-x-auto shadow-md rounded-xl border border-gray-200">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Nombre</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Responsable</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Acciones</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {areas.length > 0 ? (
+              areas.map((area, idx) => (
                 <tr
-                  key={i.id}
-                  className="border-t hover:bg-gray-50 transition"
+                  key={area.idArea ?? `${area.nombreArea}-${idx}`}
+                  className="hover:bg-blue-50 transition"
                 >
-                  <td className="px-4 py-3 text-gray-700">{i.id}</td>
-                  <td className="px-4 py-3 text-gray-900 font-medium">{i.nombre}</td>
-
-                  <td className="px-4 py-3">
-                    <div className="flex gap-2">
+                  <td className="px-6 py-4 text-sm text-blue-600 font-semibold">
+                    {area.idArea ?? "—"}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-800">
+                    {area.nombreArea}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-600">
+                    {area.responsableAreaNombre
+                      ? `${area.responsableAreaNombre}${area.responsableAreaDepto ? ` (${area.responsableAreaDepto})` : ""}`
+                      : "—"}
+                  </td>
+                  <td className="px-6 py-4 text-sm">
+                    <div className="flex gap-3">
                       <button
-                        onClick={() => openEdit(i)}
-                        className="text-blue-600 hover:text-blue-800 p-1 rounded-lg hover:bg-blue-50 transition"
+                        onClick={() => handleEdit(area)}
+                        className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-100 transition"
                       >
                         <Edit size={18} />
                       </button>
-
                       <button
-                        onClick={() => remove(i.id)}
-                        className="text-red-600 hover:text-red-800 p-1 rounded-lg hover:bg-red-50 transition"
+                        onClick={() => handleDelete(area)}
+                        className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-100 transition"
                       >
-                        <Trash2 size={18} />
+                        <XCircle size={18} />
                       </button>
                     </div>
                   </td>
                 </tr>
-              ))}
-
-              {items.length === 0 && (
-                <tr>
-                  <td colSpan={3} className="text-center p-6 text-gray-500">
-                    No hay áreas registradas.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="4" className="px-6 py-12 text-center text-gray-500">
+                  <AlertTriangle size={24} className="mx-auto mb-2 text-yellow-500" />
+                  No hay áreas registradas.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
 
-      {/* MODAL */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-md p-6">
-
-            <h3 className="text-xl font-semibold mb-4 text-gray-800">
-              {editing ? "Editar Área" : "Nueva Área"}
-            </h3>
-
-            <input
-              value={nombre}
-              onChange={e => setNombre(e.target.value)}
-              className="border rounded-lg w-full px-3 py-2 focus:ring-2 focus:ring-blue-400 outline-none"
-              placeholder="Nombre del área"
-            />
-
-            <div className="mt-6 flex justify-end gap-3">
-              <button
-                onClick={() => setShowModal(false)}
-                className="px-4 py-2 border rounded-lg hover:bg-gray-100 transition"
-              >
-                Cancelar
-              </button>
-
-              <button
-                onClick={save}
-                className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition"
-              >
-                Guardar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
+      <AreasFormModal
+        isOpen={isModalOpen}
+        areaToEdit={editingArea}
+        onClose={() => setIsModalOpen(false)}
+        onSave={handleSaveArea}
+      />
     </div>
   );
 }
