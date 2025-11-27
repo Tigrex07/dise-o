@@ -43,7 +43,7 @@ const getPriorityClasses = (priority) => {
     }
 };
 
-// Cálculo de días de apertura
+// Cálculo de días de apertura (basado en la fecha de creación)
 const calculateDaysOpen = (fechaCreacion) => {
     if (!fechaCreacion) return null;
     const today = new Date();
@@ -60,6 +60,7 @@ const calculateDaysOpen = (fechaCreacion) => {
 function SolicitudTableRow({ solicitud }) {
     const navigate = useNavigate();
     
+    // 🚨 Eliminada 'fechaCompromiso'
     const { 
         id, 
         piezaNombre, 
@@ -69,7 +70,7 @@ function SolicitudTableRow({ solicitud }) {
         estadoOperacional, // Estado de la fase del proceso (Viene del DTO de la API)
         fechaYHora, 
         responsable, 
-        fechaCompromiso 
+        // fechaCompromiso eliminada
     } = solicitud;
     
     // 🚨 LÓGICA CLAVE: Separar Prioridad (Urgencia) de Estado (Fase) 🚨
@@ -113,7 +114,7 @@ function SolicitudTableRow({ solicitud }) {
 
             {/* CAMPOS ADICIONALES */}
             <Td>{responsable || "—"}</Td> 
-            <Td>{fechaCompromiso ? new Date(fechaCompromiso).toLocaleDateString() : "—"}</Td>
+            {/* 🚨 Eliminada columna de Fecha Compromiso */}
             <Td className={`font-medium ${diasAbierto > 20 ? 'text-red-600' : 'text-green-600'}`}>
                 {diasAbierto ? `${diasAbierto} días` : '—'}
             </Td>
@@ -238,18 +239,18 @@ export default function Dashboard() {
             return;
         }
 
-        // 🚨 ENCABEZADOS NORMALIZADOS Y MÁS DETALLADOS
+        // 🚨 ENCABEZADOS NORMALIZADOS: Eliminada "Fecha Compromiso"
         const exportHeaders = [
             "ID Solicitud", "Fecha Creación", "Hora Creación", "Solicitante", 
             "Pieza", "Máquina", "Tipo Solicitud", "Prioridad Asignada", "Estado Actual", 
-            "Responsable Asignado", "Fecha Compromiso", "Días Abierto", "Descripción Completa"
+            "Responsable Asignado", "Días Abierto", "Descripción Completa"
         ];
         
-        // 🚨 CLAVES DE DTO ASOCIADAS A LOS NUEVOS CAMPOS (incluyendo los calculados)
+        // 🚨 CLAVES DE DTO ASOCIADAS: Eliminada "fechaCompromiso"
         const exportKeys = [
             "id", "fechaCreacion", "horaCreacion", "solicitanteNombre", 
             "piezaNombre", "maquina", "tipo", "prioridadActual", "estadoOperacional", 
-            "responsable", "fechaCompromiso", "diasAbierto", "detalles"
+            "responsable", "diasAbierto", "detalles"
         ];
         
         // 1. Preparar los datos, calculando y formateando los campos
@@ -260,18 +261,15 @@ export default function Dashboard() {
             const fechaCreacion = creationDate ? creationDate.toLocaleDateString('es-MX') : '';
             const horaCreacion = creationDate ? creationDate.toLocaleTimeString('es-MX') : '';
 
-            // Calcular Días Abierto y Formatear Fecha Compromiso
+            // Calcular Días Abierto
             const diasAbierto = calculateDaysOpen(solicitud.fechaYHora);
-            const fechaCompromiso = solicitud.fechaCompromiso 
-                ? new Date(solicitud.fechaCompromiso).toLocaleDateString('es-MX') 
-                : '';
+            // La lógica para fechaCompromiso fue eliminada
             
             return {
                 ...solicitud, // Copia los campos existentes
                 fechaCreacion,
                 horaCreacion,
                 diasAbierto: diasAbierto ? `${diasAbierto}` : '0', 
-                fechaCompromiso: fechaCompromiso,
             };
         });
 
@@ -404,7 +402,7 @@ export default function Dashboard() {
                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prioridad</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Responsable</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">F. Compromiso</th>
+                                {/* 🚨 Eliminada columna de Fecha Compromiso */}
                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Días Abierto</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
                             </tr>
@@ -412,13 +410,15 @@ export default function Dashboard() {
                         <tbody className="bg-white divide-y divide-gray-200">
                             {loadingSolicitudes ? (
                                 <tr>
-                                    <Td colSpan="9" className="text-center py-8 text-indigo-500">Cargando solicitudes...</Td>
+                                    {/* 🚨 colSpan ajustado de 9 a 8 */}
+                                    <Td colSpan="8" className="text-center py-8 text-indigo-500">Cargando solicitudes...</Td>
                                 </tr>
                             ) : filteredSolicitudes.length > 0 ? (
                                 filteredSolicitudes.map((s) => <SolicitudTableRow key={s.id} solicitud={s} />)
                             ) : (
                                 <tr>
-                                    <Td colSpan="9" className="text-center py-8 text-gray-500">
+                                    {/* 🚨 colSpan ajustado de 9 a 8 */}
+                                    <Td colSpan="8" className="text-center py-8 text-gray-500">
                                         No hay solicitudes que coincidan con los filtros.
                                     </Td>
                                 </tr>
