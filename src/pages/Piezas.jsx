@@ -1,51 +1,82 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Package, PlusCircle, Edit, XCircle, Loader2, RefreshCw, AlertTriangle, Save, X } from "lucide-react";
+import {
+  Package,
+  PlusCircle,
+  Edit,
+  XCircle,
+  Loader2,
+  RefreshCw,
+  AlertTriangle,
+} from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import API_BASE_URL from "../components/apiConfig";
 
 const API_PIEZAS_URL = `${API_BASE_URL}/Piezas`;
 
-// Normaliza nombres de campos del backend (IdPieza/NombrePieza -> idPieza/nombrePieza)
+/**
+ * Normaliza la respuesta del backend para usar siempre las mismas claves en el frontend.
+ */
 function normalizePieza(p) {
   return {
-    idPieza: p.idPieza ?? p.IdPieza ?? p.id ?? null,
+    idPieza: p.idPieza ?? p.id ?? null,
     nombrePieza: p.nombrePieza ?? p.NombrePieza ?? "",
     maquina: p.maquina ?? p.Maquina ?? "",
-    idArea: p.idArea ?? p.IdArea ?? p.areaId ?? null,
+    idArea: p.idArea ?? p.IdArea ?? null,
+    nombreArea:
+      p.nombreArea ??
+      p.nombreArea ??
+      p.Area?.nombreArea ??
+      p.Area?.NombreArea ??
+      "",
   };
 }
 
-// Construye payload en PascalCase y tipos correctos para el backend (.NET)
+/**
+ * Construye el payload que se enviará al backend (camelCase).
+ * Si tu backend espera PascalCase, reemplaza las claves aquí.
+ */
 function buildPiezaPayload(formOrItem) {
   return {
-    IdPieza: formOrItem.idPieza ?? undefined, // solo en PUT
-    NombrePieza: formOrItem.nombrePieza,
-    Maquina: formOrItem.maquina || "",
-    IdArea: formOrItem.idArea !== "" ? Number(formOrItem.idArea) : null,
+    nombrePieza: formOrItem.nombrePieza,
+    maquina: formOrItem.maquina || "",
+    idArea: Number(formOrItem.idArea),
   };
-}function PiezasFormModal({ isOpen, piezaToEdit, onClose, onSave }) {
+}
+
+/* ------------------ PiezasFormModal ------------------ */
+function PiezasFormModal({ isOpen, piezaToEdit, onClose, onSave }) {
   const isEditing = !!piezaToEdit;
   const [formData, setFormData] = useState({
     nombrePieza: "",
     maquina: "",
     idArea: "",
   });
+  const [areas, setAreas] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
   const [formError, setFormError] = useState(null);
 
   useEffect(() => {
-    if (isOpen) {
-      setFormError(null);
-      if (isEditing && piezaToEdit) {
-        setFormData({
-          nombrePieza: piezaToEdit.nombrePieza ?? "",
-          maquina: piezaToEdit.maquina ?? "",
-          idArea: piezaToEdit.idArea?.toString?.() ?? "",
-        });
-      } else {
-        setFormData({ nombrePieza: "", maquina: "", idArea: "" });
-      }
+    if (!isOpen) return;
+
+    setFormError(null);
+    if (isEditing && piezaToEdit) {
+      setFormData({
+        nombrePieza: piezaToEdit.nombrePieza ?? "",
+        maquina: piezaToEdit.maquina ?? "",
+        idArea: piezaToEdit.idArea?.toString?.() ?? "",
+      });
+    } else {
+      setFormData({ nombrePieza: "", maquina: "", idArea: "" });
     }
+
+    // Cargar áreas para el select
+    fetch(`${API_BASE_URL}/Areas`)
+      .then((res) => res.json())
+      .then((data) => {
+        const list = Array.isArray(data) ? data : [];
+        setAreas(list);
+      })
+      .catch(() => setAreas([]));
   }, [isOpen, isEditing, piezaToEdit]);
 
   if (!isOpen) return null;
@@ -64,11 +95,7 @@ function buildPiezaPayload(formOrItem) {
       return;
     }
     if (!formData.idArea.toString().trim()) {
-      setFormError("Área es obligatoria (usa un número válido).");
-      return;
-    }
-    if (Number.isNaN(Number(formData.idArea))) {
-      setFormError("El campo Área debe ser un número.");
+      setFormError("Área es obligatoria.");
       return;
     }
 
@@ -76,10 +103,10 @@ function buildPiezaPayload(formOrItem) {
     try {
       await onSave(
         {
-          ...(isEditing && { idPieza: piezaToEdit.idPieza }),
           nombrePieza: formData.nombrePieza.trim(),
           maquina: formData.maquina.trim(),
           idArea: Number(formData.idArea),
+          idPieza: piezaToEdit?.idPieza ?? null,
         },
         isEditing
       );
@@ -90,87 +117,105 @@ function buildPiezaPayload(formOrItem) {
       setIsSaving(false);
     }
   };
-    return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-gray-900/60 p-4">
-      <div className="bg-white rounded-2xl shadow-3xl w-full max-w-lg">
-        <div className="p-6">
-          <div className="flex items-center justify-between border-b pb-3 mb-4">
-            <h3 className="text-xl font-bold text-slate-800 flex items-center">
-              <Package className="mr-2 w-5 h-5 text-indigo-600" />
-              {isEditing ? "Editar Pieza" : "Nueva Pieza"}
-            </h3>
-            <button onClick={onClose} disabled={isSaving} className="text-gray-400 hover:text-gray-600">
-              <X size={20} />
-            </button>
+
+  return (
+    
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
+        <header className="flex items-center justify-between mb-4">
+  <div className="flex items-center gap-3">
+    <div className="bg-indigo-50 text-indigo-600 rounded-lg p-2">
+      <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path d="M3 7h18M3 12h18M3 17h18" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    </div>
+    <div>
+      <h3 className="text-lg font-semibold text-slate-800">{isEditing ? "Editar Pieza" : "Nueva Pieza"}</h3>
+      <p className="text-sm text-slate-500">Agrega los datos de la pieza y asigna un área</p>
+    </div>
+  </div>
+  <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+    <XCircle size={20} />
+  </button>
+</header>
+        {formError && (
+          <div className="mb-4 text-sm text-red-700 bg-red-100 p-3 rounded">
+            {formError}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Nombre</label>
+            <input
+              name="nombrePieza"
+              value={formData.nombrePieza}
+              onChange={handleChange}
+              className="mt-1 block w-full rounded-md border-gray-200 shadow-sm"
+              placeholder="Ej. Molde 45"
+              required
+            />
           </div>
 
-          <form onSubmit={handleSubmit}>
-            {formError && (
-              <div className="p-3 mb-4 text-sm text-red-700 bg-red-100 rounded-lg flex items-center">
-                <AlertTriangle size={16} className="mr-2" />
-                {formError}
-              </div>
-            )}
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Máquina</label>
+            <input
+              name="maquina"
+              value={formData.maquina}
+              onChange={handleChange}
+              className="mt-1 block w-full rounded-md border-gray-200 shadow-sm"
+              placeholder="Ej. Maquinola"
+            />
+          </div>
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Nombre de la Pieza *</label>
-              <input
-                type="text"
-                name="nombrePieza"
-                value={formData.nombrePieza}
-                onChange={handleChange}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
-                required
-              />
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Área</label>
+            <select
+              name="idArea"
+              value={formData.idArea}
+              onChange={handleChange}
+              className="mt-1 block w-full rounded-md border-gray-200 shadow-sm"
+              required
+            >
+              <option value="">Seleccione un área</option>
+              {areas.map((a) => (
+                <option key={a.id ?? a.idArea ?? a.Id} value={a.id ?? a.idArea ?? a.Id}>
+                  {a.nombreArea ?? a.NombreArea ?? a.name ?? "Área"}
+                </option>
+              ))}
+            </select>
+          </div>
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Máquina</label>
-              <input
-                type="text"
-                name="maquina"
-                value={formData.maquina}
-                onChange={handleChange}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
-              />
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">Área (ID numérico) *</label>
-              <input
-                type="number"
-                name="idArea"
-                value={formData.idArea}
-                onChange={handleChange}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
-                required
-              />
-            </div>
-
-            <div className="flex justify-end space-x-3">
-              <button
-                type="button"
-                onClick={onClose}
-                disabled={isSaving}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={isSaving}
-                className="flex items-center px-4 py-2 text-sm font-medium text.white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-lg text-white"
-              >
-                {isSaving ? <Loader2 size={16} className="mr-2 animate-spin" /> : <Save size={16} className="mr-2" />}
-                {isEditing ? "Guardar Cambios" : "Crear Pieza"}
-              </button>
-            </div>
-          </form>
-        </div>
+          <div className="md:col-span-2 flex justify-end gap-3 mt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 rounded-md bg-gray-100 hover:bg-gray-200"
+              disabled={isSaving}
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
+              disabled={isSaving}
+            >
+              {isSaving ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="animate-spin" size={16} /> Guardando...
+                </span>
+              ) : (
+                "Guardar"
+              )}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
 }
+
+/* ------------------ Componente principal Piezas ------------------ */
 export default function Piezas() {
   const { user } = useAuth();
   const [piezas, setPiezas] = useState([]);
@@ -181,6 +226,7 @@ export default function Piezas() {
 
   const authHeader = user?.token ? { Authorization: `Bearer ${user.token}` } : {};
 
+  // Cargar piezas
   const fetchPiezas = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -198,55 +244,74 @@ export default function Piezas() {
       const raw = await response.json();
       const data = Array.isArray(raw) ? raw.map(normalizePieza) : [];
       setPiezas(data);
-      // Debug para verificar IDs
-      // console.log("Piezas normalizadas:", data);
     } catch (err) {
       setError(err.message);
       setPiezas([]);
     } finally {
       setIsLoading(false);
     }
-  }, [API_PIEZAS_URL, user?.token]);
+  }, [user?.token]);
 
   useEffect(() => {
     fetchPiezas();
   }, [fetchPiezas]);
 
+  /* ------------------ handleSavePieza (intentos y logging) ------------------ */
   const handleSavePieza = async (pieza, isEditing) => {
     const method = isEditing ? "PUT" : "POST";
     const url = isEditing ? `${API_PIEZAS_URL}/${pieza.idPieza}` : API_PIEZAS_URL;
-    const payload = buildPiezaPayload(pieza);
 
-    const response = await fetch(url, {
-      method,
-      headers: {
-        "Content-Type": "application/json",
-        ...authHeader,
-      },
-      body: JSON.stringify(payload),
-    });
+    // Aseguramos tipos correctos
+    const safePayload = {
+      nombrePieza: (pieza.nombrePieza ?? "").toString().trim(),
+      maquina: (pieza.maquina ?? "").toString().trim(),
+      idArea: Number(pieza.idArea) || 0,
+    };
 
-    if (!response.ok) {
-      if (response.status === 400) {
-        // Intenta leer mensaje del backend si lo hay
-        let msg = "Error al guardar pieza (400). Revisa nombres y tipos.";
-        try {
-          const errBody = await response.json();
-          if (errBody?.message) msg = errBody.message;
-        } catch {}
-        throw new Error(msg);
-      }
-      if (response.status === 401) throw new Error("Sesión expirada. Inicia sesión de nuevo.");
-      throw new Error("Error al guardar pieza.");
+    console.log("Intentando guardar pieza. Payload seguro:", safePayload);
+
+    // Helper para intentar un POST/PUT y devolver texto de respuesta
+    const tryPost = async (body) => {
+      console.log("Enviando body:", body);
+      const resp = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json", ...authHeader },
+        body: JSON.stringify(body),
+      });
+      const text = await resp.text();
+      console.log("Status:", resp.status, "Respuesta:", text);
+      return { ok: resp.ok, status: resp.status, text };
+    };
+
+    // 1) Intento directo (sin wrapper)
+    const directBody = { ...safePayload };
+    const directResult = await tryPost(directBody);
+    if (directResult.ok) {
+      await fetchPiezas();
+      return;
     }
-    await fetchPiezas();
+
+    // 2) Si falla, intentamos con wrapper piezaDto
+    const wrappedBody = { piezaDto: { ...safePayload } };
+    const wrappedResult = await tryPost(wrappedBody);
+    if (wrappedResult.ok) {
+      await fetchPiezas();
+      return;
+    }
+
+    // 3) Si ambos fallan, lanzamos el error con el texto del backend (priorizamos el directo)
+    const errorText = directResult.text || wrappedResult.text || "Error desconocido al guardar pieza.";
+    console.error("Ambos intentos fallaron. Detalle:", { directResult, wrappedResult });
+    throw new Error(errorText);
   };
 
+  // Editar pieza
   const handleEdit = (pieza) => {
     setEditingPieza(pieza);
     setIsModalOpen(true);
   };
 
+  // Eliminar pieza
   const handleDelete = async (pieza) => {
     if (!window.confirm(`¿Eliminar la pieza "${pieza.nombrePieza}"?`)) return;
     const response = await fetch(`${API_PIEZAS_URL}/${pieza.idPieza}`, {
@@ -265,7 +330,8 @@ export default function Piezas() {
     }
     await fetchPiezas();
   };
-    return (
+
+  return (
     <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100 min-h-full">
       <header className="flex justify-between items-center mb-6 border-b pb-4">
         <h2 className="text-2xl font-extrabold text-slate-800 flex items-center">
@@ -274,7 +340,10 @@ export default function Piezas() {
         </h2>
         <div className="flex space-x-3">
           <button
-            onClick={() => { setEditingPieza(null); setIsModalOpen(true); }}
+            onClick={() => {
+              setEditingPieza(null);
+              setIsModalOpen(true);
+            }}
             className="flex items-center px-4 py-2 bg-indigo-600 text-white font-semibold rounded-xl shadow-md hover:bg-indigo-700"
           >
             <PlusCircle size={20} className="mr-2" /> Nueva Pieza
@@ -316,18 +385,17 @@ export default function Piezas() {
             {piezas.length > 0 ? (
               piezas.map((pieza, idx) => (
                 <tr
-                  key={
-                    pieza.idPieza ??
-                    `${pieza.nombrePieza}-${pieza.maquina}-${idx}` // fallback seguro para evitar el warning de key
-                  }
+                  key={pieza.idPieza ?? `${pieza.nombrePieza}-${idx}`}
                   className="hover:bg-indigo-50 transition"
                 >
                   <td className="px-6 py-4 text-sm text-indigo-600 font-semibold">
                     {pieza.idPieza ?? "—"}
                   </td>
                   <td className="px-6 py-4 text-sm text-gray-800">{pieza.nombrePieza}</td>
-                  <td className="px-6 py-4 text-sm text.gray-500">{pieza.maquina || "—"}</td>
-                  <td className="px-6 py-4 text-sm text.gray-500">{pieza.idArea ?? "—"}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500">{pieza.maquina || "—"}</td>
+                  <td className="px-6 py-4 text-sm text-gray-500">
+                    {pieza.nombreArea || pieza.idArea || "—"}
+                  </td>
                   <td className="px-6 py-4 text-sm">
                     <div className="flex gap-3">
                       <button
