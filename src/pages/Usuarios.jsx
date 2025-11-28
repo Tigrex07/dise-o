@@ -147,7 +147,7 @@ function UserFormModal({ isOpen, userToEdit, onClose, onSave }) {
         }
     };
 
-    const ROLES = ["Admin IT", "Ingeniero", "Operador"];
+    const ROLES = ["Admin IT", "Ingeniero", "Operador", "Maquinista"];
     const AREAS = ["Machine Shop", "Inyección", "Extrusión", "Mantenimiento", "IT/Sistemas", "Otros"];
 
 
