@@ -58,27 +58,29 @@ function FeedbackMessage({ message, type, onClose }) {
 export default function SolicitudForm() {
     const navigate = useNavigate();
     const { user, logOut } = useAuth(); // Obtiene el contexto de autenticación
-
-    // ----------------------------------------------------------------------
-    // --- ESTADO INICIAL DEL FORMULARIO ---
-    // ----------------------------------------------------------------------
-    const [formData, setFormData] = useState({
-        // Inicializar SolicitanteId a null. Se actualizará en useEffect.
-        SolicitanteId: null, 
+    
+    // 💡 FUNCIÓN HELPER: Define el estado limpio de los campos de entrada
+    const getClearedState = useCallback(() => ({
         IdArea: '',
         NombrePieza: '',
         Maquina: '',
-        // FechaYHora se inicializa automáticamente
         FechaYHora: new Date().toISOString().substring(0, 16), 
         Turno: '',
         Tipo: '',
         Detalles: '',
         Dibujo: '',
+    }), []);
+
+    // ----------------------------------------------------------------------
+    // --- ESTADO INICIAL DEL FORMULARIO ---
+    // ----------------------------------------------------------------------
+    const [formData, setFormData] = useState({
+        SolicitanteId: null, 
+        ...getClearedState() // Inicializa con los campos limpios
     });
     
     // ----------------------------------------------------------------------
     // --- ESTADOS PARA LOS CAMPOS AUTOCOMPLETADOS (Sólo Visualización) ---
-    // Se inicializan con placeholders de "Cargando" para manejar la carga asíncrona.
     // ----------------------------------------------------------------------
     const [nombreSolicitante, setNombreSolicitante] = useState('Cargando...');
     const [areaSolicitante, setAreaSolicitante] = useState('Cargando...');
@@ -149,7 +151,7 @@ export default function SolicitudForm() {
             fetchAreas();
         }
         
-    }, [user]); // 🚨 CLAVE: Este efecto se ejecuta cada vez que el objeto 'user' cambia.
+    }, [user, getClearedState]); // Dependencia agregada (getClearedState)
 
     // ----------------------------------------------------------------------
     // --- MANEJO DE CAMBIOS DEL FORMULARIO ---
@@ -205,6 +207,13 @@ export default function SolicitudForm() {
 
             const result = await response.json();
             setFeedback({ message: `Solicitud #${result.id} creada con éxito y enviada a revisión.`, type: 'success' });
+            
+            // 🚨 CAMBIO APLICADO: Resetear todos los campos de entrada
+            // Mantenemos el SolicitanteId actual.
+            setFormData(prev => ({
+                ...prev,
+                ...getClearedState() 
+            }));
             
         } catch (error) {
             console.error("Error en el POST:", error);

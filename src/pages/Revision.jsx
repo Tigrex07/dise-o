@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Briefcase, Clock, Zap, AlertTriangle, Save, RefreshCw, X } from 'lucide-react'; 
+import { Briefcase, Clock, Zap, AlertTriangle, Save, RefreshCw, X, ChevronLeft, ChevronRight } from 'lucide-react'; 
 
 // --- IMPORTS CRÍTICAS ---
 import { useAuth } from '../context/AuthContext'; 
@@ -69,8 +69,11 @@ export default function Revision() {
         prioridad: 'Media',
         comentarios: '', 
         idMaquinistaAsignado: '', // 💡 ID del Maquinista seleccionado
-
     });
+
+    // 💡 ESTADOS DE PAGINACIÓN
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 15; // Límite por página (15)
 
     // ----------------------------------------------------------------------
     // --- LÓGICA DE CARGA DE DATOS DE ASIGNACIÓN (NUEVA FUNCIÓN) ---
@@ -122,6 +125,7 @@ export default function Revision() {
         const token = localStorage.getItem('authToken');
         setLoadingSolicitudes(true);
         setSelectedSolicitud(null); 
+        setCurrentPage(1); // Resetear a página 1 al recargar
         
         try {
             const response = await fetch(API_SOLICITUDES_URL, {
@@ -165,6 +169,40 @@ export default function Revision() {
             }) 
             .sort((a, b) => new Date(a.fechaYHora) - new Date(b.fechaYHora)); 
     }, [solicitudes]);
+
+    // ----------------------------------------------------------------------
+    // --- LÓGICA DE PAGINACIÓN (Igual al Dashboard) ---
+    // ----------------------------------------------------------------------
+    const totalItems = filteredSolicitudes.length;
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    
+    const currentItems = useMemo(() => {
+        return filteredSolicitudes.slice(startIndex, endIndex);
+    }, [filteredSolicitudes, startIndex, endIndex]);
+
+    const handlePageChange = (page) => {
+        if (page >= 1 && page <= totalPages) {
+            setCurrentPage(page);
+        }
+    };
+
+    const getPageNumbers = () => {
+        const maxPagesToShow = 5;
+        let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+        let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+
+        if (endPage - startPage + 1 < maxPagesToShow) {
+            startPage = Math.max(1, endPage - maxPagesToShow + 1);
+        }
+
+        const pages = [];
+        for (let i = startPage; i <= endPage; i++) {
+            pages.push(i);
+        }
+        return pages;
+    };
     
     // ----------------------------------------------------------------------
     // --- MANEJO DE SELECCIÓN Y DATOS DEL FORMULARIO ---
@@ -408,7 +446,8 @@ export default function Revision() {
                                     <Td colSpan="6" className="text-center py-8 text-indigo-500">Cargando solicitudes...</Td>
                                 </tr>
                             ) : filteredSolicitudes.length > 0 ? (
-                                filteredSolicitudes.map((s) => <RevisionRow key={s.id} solicitud={s} />)
+                                // 🚨 CAMBIO: Mapeamos currentItems en lugar de filteredSolicitudes
+                                currentItems.map((s) => <RevisionRow key={s.id} solicitud={s} />)
                             ) : (
                                 <tr>
                                     <Td colSpan="6" className="text-center py-8 text-gray-500">
@@ -420,6 +459,67 @@ export default function Revision() {
                         </tbody>
                     </table>
                 </div>
+
+                {/* 💡 CONTROLES DE PAGINACIÓN */}
+                {totalPages > 1 && (
+                    <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 rounded-b-xl mt-4">
+                        <div className="flex flex-1 justify-between sm:hidden">
+                            <button
+                                onClick={() => handlePageChange(currentPage - 1)}
+                                disabled={currentPage === 1}
+                                className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                            >
+                                Anterior
+                            </button>
+                            <button
+                                onClick={() => handlePageChange(currentPage + 1)}
+                                disabled={currentPage === totalPages}
+                                className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                            >
+                                Siguiente
+                            </button>
+                        </div>
+                        <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                            <div>
+                                <p className="text-sm text-gray-700">
+                                    Mostrando <span className="font-medium">{startIndex + 1}</span> a <span className="font-medium">{Math.min(endIndex, totalItems)}</span> de <span className="font-medium">{totalItems}</span> resultados
+                                </p>
+                            </div>
+                            <div>
+                                <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                                    <button
+                                        onClick={() => handlePageChange(currentPage - 1)}
+                                        disabled={currentPage === 1}
+                                        className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                                    >
+                                        <ChevronLeft size={16} />
+                                    </button>
+                                    
+                                    {getPageNumbers().map(page => (
+                                        <button
+                                            key={page}
+                                            onClick={() => handlePageChange(page)}
+                                            aria-current={currentPage === page ? 'page' : undefined}
+                                            className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold focus:z-20 ${currentPage === page 
+                                                ? 'z-10 bg-indigo-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600'
+                                                : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50'}`}
+                                        >
+                                            {page}
+                                        </button>
+                                    ))}
+
+                                    <button
+                                        onClick={() => handlePageChange(currentPage + 1)}
+                                        disabled={currentPage === totalPages}
+                                        className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                                    >
+                                        <ChevronRight size={16} />
+                                    </button>
+                                </nav>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Columna de Formulario de Revisión (1/3) */}
