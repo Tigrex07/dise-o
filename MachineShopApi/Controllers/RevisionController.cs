@@ -22,60 +22,67 @@ namespace MachineShopApi.Controllers
         }
 
         // POST: api/Revision
-        // Crea una nueva revisión y actualiza la prioridad de la solicitud.
+        // Crea una nueva revisión y actualiza la prioridad de la solicitud.solicitud.PrioridadActual
         [HttpPost]
-        public async Task<ActionResult<Revision>> PostRevision(RevisionCreationDto revisionDto)
+        // 🚨 CAMBIO CRÍTICO 1: Usamos el DTO de APROBACIÓN
+        public async Task<ActionResult<Revision>> PostRevision(RevisionApprovalDto approvalDto)
         {
             // 1. Validaciones
-            var solicitudExiste = await _context.Solicitudes.AnyAsync(s => s.Id == revisionDto.IdSolicitud);
-            var revisorExiste = await _context.Usuarios.AnyAsync(u => u.Id == revisionDto.IdRevisor);
+            var solicitudExiste = await _context.Solicitudes.AnyAsync(s => s.Id == approvalDto.IdSolicitud);
+            var revisorExiste = await _context.Usuarios.AnyAsync(u => u.Id == approvalDto.IdRevisor);
+            // 🚨 NUEVA VALIDACIÓN: Maquinista Asignado debe existir
+            var maquinistaExiste = await _context.Usuarios.AnyAsync(u => u.Id == approvalDto.IdMaquinistaAsignado);
 
-            if (!solicitudExiste || !revisorExiste)
+
+            if (!solicitudExiste || !revisorExiste || !maquinistaExiste)
             {
-                return BadRequest("El ID de Solicitud o Revisor proporcionado no es válido.");
+                return BadRequest("El ID de Solicitud, Revisor o Maquinista proporcionado no es válido.");
             }
 
             // Verificar que no exista ya una revisión para esta solicitud (Relación 1:1)
-            var revisionExistente = await _context.Revisiones.AnyAsync(r => r.IdSolicitud == revisionDto.IdSolicitud);
+            var revisionExistente = await _context.Revisiones.AnyAsync(r => r.IdSolicitud == approvalDto.IdSolicitud);
             if (revisionExistente)
             {
                 // Este es el error 409 que el frontend maneja con un fallback a PUT
-                return Conflict("Ya existe un registro de revisión para esta solicitud.");
+                return Conflict("Ya existe un registro de revisión para esta solicitud. Use el método PUT para actualizar.");
             }
 
-            // 2. Mapear DTO al Modelo
+            // =======================================================
+            // 2. CREAR REGISTRO DE REVISIÓN
+            // =======================================================
             var revision = new Revision
             {
-                IdSolicitud = revisionDto.IdSolicitud,
-                IdRevisor = revisionDto.IdRevisor,
-                Prioridad = revisionDto.Prioridad,
-                Comentarios = revisionDto.Comentarios,
+                IdSolicitud = approvalDto.IdSolicitud,
+                IdRevisor = approvalDto.IdRevisor,
+                Prioridad = approvalDto.Prioridad,
+                Comentarios = approvalDto.Comentarios,
                 FechaHoraRevision = DateTime.Now
             };
-
             _context.Revisiones.Add(revision);
 
-            // 3. FLUJO DE ESTADO: Crear un nuevo registro en EstadoTrabajo
-            int idMaquinistaSistema = 1;
-
+            // =======================================================
+            // 3. CREAR REGISTRO DE ESTADO DE TRABAJO (Asignación)
+            // =======================================================
             var nuevoEstado = new EstadoTrabajo
             {
                 IdSolicitud = revision.IdSolicitud,
-                IdMaquinista = idMaquinistaSistema,
+                // 🚨 CAMBIO CRÍTICO 2: Usamos el ID y la máquina del DTO
+                IdMaquinista = approvalDto.IdMaquinistaAsignado,
                 MaquinaAsignada = "N/A",
 
                 FechaYHoraDeInicio = DateTime.Now,
                 FechaYHoraDeFin = null,
 
-                DescripcionOperacion = $"Revisión de Ingeniería: Prioridad {revision.Prioridad}",
+                DescripcionOperacion = $"Asignación inicial: Prioridad {revision.Prioridad}",
                 TiempoMaquina = 0,
-                Observaciones = "Prioridad y comentarios de ingeniería establecidos."
+                Observaciones = $"Solicitud aprobada y asignada al Maquinista ID {approvalDto.IdMaquinistaAsignado}. Pendiente de inicio de trabajo y asignación de máquina."
             };
 
             _context.EstadoTrabajo.Add(nuevoEstado);
 
             await _context.SaveChangesAsync();
 
+            // Devolver la revisión creada
             return CreatedAtAction(nameof(GetRevision), new { id = revision.Id }, revision);
         }
 
@@ -84,6 +91,7 @@ namespace MachineShopApi.Controllers
         // Ruta: PUT api/Revision/{idSolicitud}
         // ------------------------------------------------------------------
         [HttpPut("{idSolicitud}")]
+        // 🚨 CAMBIO CRÍTICO 3: Seguimos usando el DTO simple (asumiendo que es RevisionCreationDto)
         public async Task<IActionResult> PutRevision(int idSolicitud, RevisionCreationDto revisionDto)
         {
             if (idSolicitud != revisionDto.IdSolicitud)
@@ -121,29 +129,11 @@ namespace MachineShopApi.Controllers
                 // 4. Actualizar la revisión en la base de datos
                 await _context.SaveChangesAsync();
 
-                // 5. FLUJO DE ESTADO: Crear un nuevo registro en EstadoTrabajo
-                int idMaquinistaSistema = 1;
-
-                var nuevoEstado = new EstadoTrabajo
-                {
-                    IdSolicitud = revision.IdSolicitud,
-                    IdMaquinista = idMaquinistaSistema,
-                    MaquinaAsignada = "N/A",
-
-                    FechaYHoraDeInicio = DateTime.Now,
-                    FechaYHoraDeFin = null,
-
-                    DescripcionOperacion = $"Revisión de Ingeniería ACTUALIZADA: Prioridad {revision.Prioridad}",
-                    TiempoMaquina = 0,
-                    Observaciones = "Prioridad y comentarios de ingeniería re-establecidos."
-                };
-
-                _context.EstadoTrabajo.Add(nuevoEstado);
-                await _context.SaveChangesAsync();
+                // 🚨 CAMBIO CRÍTICO 4: ELIMINAMOS la creación del registro en EstadoTrabajo aquí.
+                // El PUT solo actualiza la revisión, no inicia una nueva operación.
             }
             catch (DbUpdateConcurrencyException)
             {
-                // 🚨 CORRECCIÓN: Usamos la llamada directa a AnyAsync para la verificación
                 if (!await _context.Revisiones.AnyAsync(e => e.IdSolicitud == idSolicitud))
                 {
                     return NotFound();

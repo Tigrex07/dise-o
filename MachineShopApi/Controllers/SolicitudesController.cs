@@ -43,8 +43,8 @@ public class SolicitudesController : ControllerBase
         return new SolicitudDto
         {
             Id = s.Id,
-            SolicitanteNombre = s.Solicitante?.Nombre, // Usamos ? por si Solicitante fuera nulo
-            PiezaNombre = s.Pieza?.NombrePieza, // Usamos ? por si Pieza fuera nulo
+            SolicitanteNombre = s.Solicitante!.Nombre, // Usamos ? por si Solicitante fuera nulo
+            PiezaNombre = s.Pieza!.NombrePieza, // Usamos ? por si Pieza fuera nulo
 
             FechaYHora = s.FechaYHora,
             Turno = s.Turno,
@@ -53,7 +53,7 @@ public class SolicitudesController : ControllerBase
             Dibujo = s.Dibujo,
 
             // --- Propiedades Derivadas ---
-            PrioridadActual = s.Revision != null ? s.Revision.Prioridad : "Pendiente de Revisión",
+            PrioridadActual = s.Revision != null ? s.Revision.Prioridad : "En Revisión",
 
             // Estado Operacional (Cálculo en memoria)
             EstadoOperacional = s.Operaciones
@@ -167,37 +167,15 @@ public class SolicitudesController : ControllerBase
         _context.Solicitudes.Add(solicitud); // Agregamos la Solicitud
 
         // =======================================================
-        // 5. CREAR REVISIÓN INICIAL (Dependiente de Solicitud)
+        // ELIMINADO 5. CREAR REVISIÓN INICIAL (Dependiente de Solicitud)
         // =======================================================
-        var nuevaRevision = new Revision
-        {
-            Solicitud = solicitud, // 💡 ENLACE 1: Usamos la propiedad de navegación
-            IdRevisor = 1, // Usuario de Sistema
-            Prioridad = "En Revisión",
-            FechaHoraRevision = DateTime.UtcNow,
-            Comentarios = "Pendiente de revisión inicial por Ingeniería."
-        };
-        _context.Revisiones.Add(nuevaRevision);
-
+        
 
         // =======================================================
-        // 6. CREAR ESTADO DE TRABAJO INICIAL (Dependiente de Solicitud)
+        // ELIMINADO 6. CREAR ESTADO DE TRABAJO INICIAL (Dependiente de Solicitud)
         // =======================================================
-        var estadoInicial = new EstadoTrabajo
-        {
-            Solicitud = solicitud, // 💡 ENLACE 2: Usamos la propiedad de navegación
-
-            // Corrección FOREIGN KEY: Usamos el Usuario de Sistema para evitar errores de FK.
-            IdMaquinista = 1,
-
-            MaquinaAsignada = "N/A",
-            TiempoMaquina = 0,
-            DescripcionOperacion = "Pendiente de Revisión por Ingeniería",
-            FechaYHoraDeInicio = DateTime.UtcNow,
-            Observaciones = "Solicitud creada por el sistema y enviada a revisión."
-        };
-
-        _context.EstadoTrabajo.Add(estadoInicial);
+        
+        
 
         // --- Segundo SaveChanges: Guarda Solicitud, Revision y Estado Inicial ---
         // Al guardar 'solicitud', se le asignará el Id, y los enlaces se resolverán.
