@@ -217,4 +217,6 @@ public class SolicitudesController : ControllerBase
         // HTTP 204 No Content: Indica que la acción se completó exitosamente sin devolver un cuerpo.
         return NoContent();
     }
+  
+    
 }

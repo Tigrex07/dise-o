@@ -138,5 +138,35 @@ namespace MachineShopApi.Controllers
 
             return NoContent();
         }
+
+
+        [HttpGet("Assignments")] // Ruta: GET api/EstadoTrabajo/Assignments
+        public async Task<ActionResult<IEnumerable<MaquinistaAssignmentDto>>> GetSolicitudAssignments()
+        {
+            // PASO 1: Traer a memoria (ToList) todos los registros de EstadoTrabajo que tienen asignación.
+            // Usamos .Include(et => et.Maquinista) para asegurar que el nombre del usuario se cargue
+            // junto con cada registro de EstadoTrabajo en la misma consulta a la DB.
+            var allEstadoTrabajoWithMaquinista = await _context.EstadoTrabajo
+                .Include(et => et.Maquinista)
+                .Where(et => et.IdMaquinista != null)
+                .ToListAsync(); // <-- ¡AQUÍ ESTÁ LA CLAVE! Se ejecuta la consulta SQL.
+
+            // PASO 2: Procesar los datos cargados en la memoria de la aplicación (LINQ to Objects).
+            // Esta parte ya no necesita traducción a SQL.
+            var assignments = allEstadoTrabajoWithMaquinista
+                .GroupBy(et => et.IdSolicitud)
+                // Seleccionamos el registro más reciente de EstadoTrabajo dentro de cada grupo
+                .Select(g => g.OrderByDescending(et => et.FechaYHoraDeInicio).First())
+                // Mapeamos al DTO final
+                .Select(et => new MaquinistaAssignmentDto
+                {
+                    IdSolicitud = et.IdSolicitud,
+                    // Ahora .Maquinista.Nombre funciona porque los datos están en memoria.
+                    MaquinistaAsignadoNombre = et.Maquinista.Nombre
+                })
+                .ToList();
+
+            return Ok(assignments);
+        }
     }
 }
