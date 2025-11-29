@@ -1,8 +1,8 @@
-﻿using Microsoft.EntityFrameworkCore;
-// Nota: Asegúrate de tener instalado el paquete NuGet 'Microsoft.EntityFrameworkCore.Sqlite'
+using Microsoft.EntityFrameworkCore;
 using MachineShopApi.Data;
 using Microsoft.OpenApi.Models;
 using System.Text.Json.Serialization;
+using MachineShopApi.Services; // Necesario para IPasswordHasher
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,31 +17,36 @@ var MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(name: MyAllowSpecificOrigins,
-                      policy =>
-                      {
-                          // **🚨 ESTE ES EL ORIGEN QUE DEBES PERMITIR 🚨**
-                          // Tu frontend está en 5173, tu backend en 5145.
-                          policy.WithOrigins("http://localhost:5173")
-                                .AllowAnyHeader()
-                                .AllowAnyMethod(); // Permite GET, POST, PUT, PATCH (para toggle activo), etc.
-                      });
+                             policy =>
+                             {
+                                 // 🚨 CONFIGURACIÓN REFORZADA para asegurar que el 405 se resuelva.
+                                 // AllowAnyOrigin() es la solución más amplia para desarrollo.
+                                 policy.AllowAnyOrigin()
+                                       .AllowAnyHeader()
+                                       .AllowAnyMethod()
+                                       .WithExposedHeaders("Authorization"); // Expone el header de JWT (futuro)
+                             });
 });
 // ➡️ FIN DE CÓDIGO CORS ⬅️
 
 // Obtener la cadena de conexión y configurar DbContext con SQLite
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=machineshop.db";
 
-// ¡IMPORTANTE! Cambiado UseSqlServer a UseSqlite para usar la base de datos de archivo.
+// Configurar DbContext con SQLite
 builder.Services.AddDbContext<MachineShopContext>(options =>
     options.UseSqlite(connectionString));
+
+// 🚨 REGISTRO DEL SERVICIO DE HASHING
+builder.Services.AddScoped<IPasswordHasher, PasswordHasherService>();
+
 
 // Añadir soporte para Controladores
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
-     {
-         // Esto resuelve el error "A possible object cycle was detected"
-         options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
-     });
+    {
+        // Esto resuelve el error "A possible object cycle was detected"
+        options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+    });
 
 
 // Añadir Swagger/OpenAPI
@@ -55,7 +60,7 @@ var app = builder.Build();
 
 // --------------------------------------------------------------------------
 // --- BLOQUE CRÍTICO: CREACIÓN DE LA BASE DE DATOS AL INICIO ---
-// ... (Tu código de EnsureCreated se mantiene intacto) ...
+// Esto asegura que la base de datos y las tablas existen
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
@@ -91,8 +96,7 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 // ➡️ INICIO DE CÓDIGO CORS (PASO 2: USAR MIDDLEWARE) ⬅️
-// Debe ir ANTES de UseAuthorization y ANTES de MapControllers
-app.UseCors(MyAllowSpecificOrigins);
+app.UseCors(MyAllowSpecificOrigins); // Aplicar la política de CORS definida arriba
 // ➡️ FIN DE CÓDIGO CORS ⬅️
 
 app.UseAuthorization();
