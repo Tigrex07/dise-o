@@ -1,38 +1,34 @@
-// Models/UsuarioCreationDto.cs
-
+using System;
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization; // 🚨 ¡CRÍTICO! Asegúrate de que esta línea esté presente.
 
 namespace MachineShopApi.DTOs
 {
-	// DTO: Data Transfer Object
-	// Usamos esta clase para definir qu� campos esperamos recibir del cliente
-	// cuando intenta crear un nuevo usuario.
-	public class UsuarioCreationDto
-	{
-		// El nombre debe ser un campo obligatorio.
-		[Required(ErrorMessage = "El nombre de usuario es obligatorio.")]
+    public class UsuarioCreationDTO
+    {
+        [Required(ErrorMessage = "El nombre es obligatorio.")]
         [MaxLength(100)]
-
         public string Nombre { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "El email es obligatorio.")]
+        [EmailAddress(ErrorMessage = "El email no tiene un formato válido.")] // Mejora en la validación
+        [MaxLength(100)]
         public string Email { get; set; } = string.Empty;
 
-        // El �rea es obligatoria.
-        [Required(ErrorMessage = "El �rea es obligatoria.")]
+        [Required(ErrorMessage = "El área es obligatoria.")]
         [MaxLength(50)]
-
         public string Area { get; set; } = string.Empty;
 
-		// El rol es obligatorio y debe coincidir con uno de los roles v�lidos del negocio.
-		// (Operador, Supervisor, Machine Shop)
-		[Required(ErrorMessage = "El rol es obligatorio.")]
+        [Required(ErrorMessage = "El rol es obligatorio.")]
         [MaxLength(50)]
-
         public string Rol { get; set; } = string.Empty;
 
-		// La propiedad 'Activo' se inicializar� por defecto a 'Si' en el controlador
-		// a menos que se indique lo contrario en el DTO, pero la omitiremos por simplicidad
-		// y la gestionaremos directamente en el controlador.
-	}
+        // 🚨 CORRECCIÓN CLAVE: El nombre del campo JSON debe ser "password"
+        [JsonPropertyName("password")]
+        [Required(ErrorMessage = "La contraseña es obligatoria.")]
+        [MaxLength(100)]
+        public string Contrasena { get; set; } = string.Empty;
+
+        public bool Activo { get; set; } = true;
+    }
 }
