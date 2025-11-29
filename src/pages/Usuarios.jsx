@@ -95,21 +95,41 @@ function UserFormModal({ isOpen, userToEdit, onClose, onSave }) {
     }));
   };
 
+// Usuarios.jsx (Reemplazar la función handleSubmit dentro de UserFormModal)
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setFormError(null);
-
-    if (!formData.nombre.trim() || !formData.email.trim() || !formData.rol.trim()) {
+    
+    // 🚨 CORRECCIÓN 1: Validar Contraseña en el cliente (solo si no estamos editando)
+    if (!formData.nombre.trim() || 
+        !formData.email.trim() || 
+        !formData.rol.trim() || 
+        (!isEditing && !formData.password.trim()) // <-- ¡ESTA ES LA LÍNEA CLAVE!
+    ) {
       setFormError('Por favor, completa todos los campos obligatorios.');
       return;
     }
 
+    // 🚨 CORRECCIÓN 2: Construcción CLARA y robusta del payload
     const userPayload = {
-      ...(isEditing && { id: userToEdit.id }),
-      ...formData,
-      ...(isEditing && !formData.password.trim() ? {} : { password: formData.password })
+        nombre: formData.nombre,
+        email: formData.email,
+        rol: formData.rol,
+        area: formData.area,
+        activo: formData.activo,
     };
+    
+    // Incluir ID solo si es edición
+    if (isEditing) {
+        userPayload.id = userToEdit.id;
+    }
 
+    // Incluir la contraseña SÓLO si se ha introducido un valor (cubre creación y edición)
+    if (formData.password.trim()) {
+        userPayload.password = formData.password;
+    }
+    
     setIsSaving(true);
     try {
       await onSave(userPayload, isEditing);
@@ -347,11 +367,14 @@ export default function Usuarios() {
   }, [fetchUsers]);
 
   // Guardar (crear/editar)
-  const handleSaveUser = useCallback(async (user, isEditing) => {
+// Usuarios.jsx (Reemplazar la función handleSaveUser)
+
+const handleSaveUser = useCallback(async (user, isEditing) => {
     const method = isEditing ? 'PUT' : 'POST';
     const url = isEditing ? `${API_USUARIOS_URL}/${user.id}` : API_USUARIOS_URL;
 
     const payload = { ...user };
+    // Aseguramos que 'password' no se envíe en PUT si está vacío
     if (isEditing && !payload.password?.trim()) {
       delete payload.password;
     }
@@ -362,12 +385,36 @@ export default function Usuarios() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      if (!response.ok) throw new Error('Error al guardar usuario.');
+      
+      // 🚨 MANEJO DE ERRORES MEJORADO: Leer el cuerpo del 400 (ModelState)
+      if (!response.ok) {
+        let errorData;
+        try {
+            // Intentamos leer el JSON con los errores de C#
+            errorData = await response.json();
+        } catch (e) {
+            // Fallback si no es un JSON
+            throw new Error(`Error ${response.status}: La API no devolvió un formato de error legible.`);
+        }
+
+        // Si C# devolvió los errores de validación (ModelState.Errors)
+        if (errorData.errors) {
+            const validationErrors = Object.values(errorData.errors).flat();
+            // Lanza el primer error de validación para que lo vea el usuario
+            throw new Error(validationErrors[0] || 'Error de validación desconocido.');
+        }
+
+        // Fallback si el error 400 no tiene el formato esperado
+        throw new Error('Error al guardar usuario. Revise la consola para más detalles.'); 
+      }
+      
+      // Si la respuesta es OK, recargamos la lista
       await fetchUsers();
     } catch (err) {
+      // Este error es capturado y mostrado por el UserFormModal
       throw new Error(err.message || 'No se pudo guardar el usuario.');
     }
-  }, [fetchUsers]);
+}, [fetchUsers]);
 
   // Activar/Inactivar usando PUT
   const confirmAction = useCallback(async (user) => {
