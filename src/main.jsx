@@ -21,16 +21,18 @@ import Tipos from './pages/Tipos.jsx';
 import Prioridades from './pages/Prioridades.jsx';
 import Maquinas from './pages/Maquinas.jsx';
 import Areas from './pages/Areas.jsx';
-
 import Piezas from './pages/Piezas.jsx';
 
-// 🚨 CAMBIO 1: Importar el AuthProvider 🚨
-import { AuthProvider } from './context/AuthContext'; // 👈 Ajusta la ruta si es necesario
+// 🚨 Protección por rol
+import ProtectedRoute from "./components/ProtectedRoute.jsx";
 
-// 2. Importa el CSS global
+// 🚨 Contexto de autenticación
+import { AuthProvider } from './context/AuthContext';
+
+// 2. CSS global
 import './index.css';
 
-// 3. Define las rutas de la aplicación
+// 3. Rutas protegidas por rol
 const router = createBrowserRouter([
   {
     path: "/",
@@ -41,31 +43,120 @@ const router = createBrowserRouter([
       { path: "registro", element: <Registro /> },
       { path: "reset-password", element: <ResetPassword /> },
       { path: "solicitar", element: <SolicitudForm /> },
-      { path: "trabajo/mis-asignaciones", element: <MisAsignaciones /> },
-      { path: "trabajo/:id", element: <TrabajoDetail /> },
-      { path: "revision-calidad/:id", element: <CalidadReview /> },
-      { path: "reportes", element: <Reportes /> },
-      { path: "usuarios", element: <Usuarios /> },
-      { path: "configuracion", element: <Configuracion /> },
-      { path: "revision", element: <Revision /> },
-      { path: "historial", element: <Historial /> },
-      { path: "configuracion/tipos", element: <Tipos /> },
-{ path: "configuracion/prioridades", element: <Prioridades /> },
-{ path: "configuracion/maquinas", element: <Maquinas /> },
-{ path: "configuracion/areas", element: <Areas /> },
 
-{ path: "configuracion/piezas", element: <Piezas /> },
-
+      {
+        path: "trabajo/mis-asignaciones",
+        element: (
+          <ProtectedRoute allowedRoles={["Operador", "Maquinista", "Admin IT"]}>
+            <MisAsignaciones />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "trabajo/:id",
+        element: (
+          <ProtectedRoute allowedRoles={["Admin IT", "Ingeniero", "Supervisor"]}>
+            <TrabajoDetail />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "revision-calidad/:id",
+        element: (
+          <ProtectedRoute allowedRoles={["Admin IT", "Ingeniero", "Supervisor"]}>
+            <CalidadReview />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "reportes",
+        element: (
+          <ProtectedRoute allowedRoles={["Admin IT", "Ingeniero", "Supervisor"]}>
+            <Reportes />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "usuarios",
+        element: (
+          <ProtectedRoute allowedRoles={["Admin IT"]}>
+            <Usuarios />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "configuracion",
+        element: (
+          <ProtectedRoute allowedRoles={["Admin IT"]}>
+            <Configuracion />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "revision",
+        element: (
+          <ProtectedRoute allowedRoles={["Admin IT", "Ingeniero", "Supervisor"]}>
+            <Revision />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "historial",
+        element: (
+          <ProtectedRoute allowedRoles={["Admin IT", "Ingeniero", "Supervisor"]}>
+            <Historial />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "configuracion/tipos",
+        element: (
+          <ProtectedRoute allowedRoles={["Admin IT"]}>
+            <Tipos />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "configuracion/prioridades",
+        element: (
+          <ProtectedRoute allowedRoles={["Admin IT"]}>
+            <Prioridades />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "configuracion/maquinas",
+        element: (
+          <ProtectedRoute allowedRoles={["Admin IT"]}>
+            <Maquinas />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "configuracion/areas",
+        element: (
+          <ProtectedRoute allowedRoles={["Admin IT"]}>
+            <Areas />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: "configuracion/piezas",
+        element: (
+          <ProtectedRoute allowedRoles={["Admin IT"]}>
+            <Piezas />
+          </ProtectedRoute>
+        ),
+      },
     ],
   },
 ]);
 
-// 4. Renderiza la aplicación con el router
+// 4. Renderiza la aplicación
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    {/* 🚨 CAMBIO 2: Envolver el RouterProvider con el AuthProvider 🚨 */}
     <AuthProvider>
       <RouterProvider router={router} />
     </AuthProvider>
-  </StrictMode>,
-);
+  </StrictMode>
+);  
