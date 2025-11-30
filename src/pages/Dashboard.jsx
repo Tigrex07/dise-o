@@ -1,6 +1,9 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { Eye, Search, Filter, ChevronLeft, ChevronRight, Component as ComponentIcon, AlertTriangle } from "lucide-react"; 
-import { useNavigate } from "react-router-dom";
+import { 
+    Search, Filter, ChevronLeft, ChevronRight, Component as ComponentIcon, AlertTriangle, 
+    // NUEVOS ICONOS PARA EL MODAL
+    X, FileText, Settings, Clock, Clipboard, Zap, UserCheck, MapPin
+} from "lucide-react"; 
 
 import { useAuth } from "../context/AuthContext";
 import API_BASE_URL from "../components/apiConfig";
@@ -9,10 +12,18 @@ import API_BASE_URL from "../components/apiConfig";
 // DEFINICIÓN DE ENDPOINT Y CONSTANTES
 // ----------------------------------------------------------------------
 const API_SOLICITUDES_URL = `${API_BASE_URL}/Solicitudes`;
-// 🚨 NUEVO: Endpoint traído de Dashboard2 para las asignaciones
+// Endpoint para asignaciones (usado para el mapa de maquinistas)
 const API_ASSIGNMENTS_URL = `${API_BASE_URL}/EstadoTrabajo/Assignments`; 
+// ENDPOINTS ASUMIDOS PARA DETALLES
+const API_REVISION_BASE_URL = `${API_BASE_URL}/Revision`; 
+const API_ESTADO_TRABAJO_BASE_URL = `${API_BASE_URL}/EstadoTrabajo`; 
+// ENDPOINTS DE REFERENCIA
+const API_PIEZA_BASE_URL = `${API_BASE_URL}/piezas`; 
+// 🚨 ENDPOINT PARA DETALLES DE ÁREA (usado para Máquina/Área)
+const API_AREAS_BASE_URL = `${API_BASE_URL}/Areas`; 
 
-// 💡 Opciones de filtro (Conservando las de tu Dashboard original)
+
+// 💡 Opciones de filtro
 const PRIORITY_FILTER_OPTIONS = [
     { value: "active-only", label: "Activas (Baja, Media, Alta, Urgente)" }, 
     { value: "Urgente", label: "Urgente" },
@@ -53,13 +64,171 @@ const getPriorityClasses = (priority) => {
 };
 
 // ----------------------------------------------------------------------
-// COMPONENTE PARA UNA FILA DE SOLICITUD
+// COMPONENTE: MODAL DE DETALLES DE SOLICITUD
 // ----------------------------------------------------------------------
-// 🚨 MODIFICADO: Ahora recibe 'maquinistaMap' como prop
-function SolicitudTableRow({ solicitud, maquinistaMap }) {
-    const navigate = useNavigate();
 
-    // 💡 Lógica para calcular Días Abiertos (Mantenida de TU archivo original)
+// Componente: Badge de Prioridad con contorno oscuro
+function PriorityBadge({ priority }) {
+    const priorityText = priority || 'Pendiente';
+    const classes = getPriorityClasses(priorityText);
+    
+    return (
+        <div className={`p-3 bg-white rounded-lg shadow-sm border`}>
+            <p className="text-xs font-medium text-gray-500 flex items-center mb-1">
+                <Clipboard size={14} className="mr-1 text-indigo-500" /> Prioridad Actual
+            </p>
+            {/* Contorno oscuro añadido: border border-gray-500 */}
+            <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${classes} border border-gray-500 shadow-sm`}>
+                {priorityText}
+            </span>
+        </div>
+    );
+}
+
+
+function SolicitudDetailModal({ solicitud, detailData, loadingDetails, onClose }) {
+    if (!solicitud) return null;
+
+    // Helper para mostrar un item de detalle
+    const DetailItem = ({ icon: Icon, label, value, className = "" }) => (
+        <div className={`p-3 bg-white rounded-lg shadow-sm border ${className}`}>
+            <p className="text-xs font-medium text-gray-500 flex items-center mb-1">
+                <Icon size={14} className="mr-1 text-indigo-500" /> {label}
+            </p>
+            <p className="text-sm font-semibold text-gray-900">{value || 'N/A'}</p>
+        </div>
+    );
+    
+    const priority = solicitud.prioridadActual || 'Pendiente';
+    
+    // Obtener datos de Máquina/Área (Prioridad: Área API > Pieza API > Solicitud DTO)
+    const areaNombre = detailData.areaData?.nombreArea || detailData.pieceData?.area?.nombreArea || solicitud.areaNombre;
+    const maquinaNombre = detailData.pieceData?.maquina || solicitud.maquina; 
+    
+    const revision = detailData.revision;
+    const estadoTrabajo = detailData.estadoTrabajo;
+
+
+    return (
+        // Fondo con blur y color gris oscuro semitransparente
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-gray-800/70 backdrop-blur-sm flex items-start justify-center p-4 sm:p-6 lg:p-8">
+            <div className="relative w-full max-w-4xl mt-10 bg-white rounded-xl shadow-2xl transform transition-all">
+                
+                {/* Encabezado del Modal */}
+                <div className="p-6 border-b flex justify-between items-center sticky top-0 bg-white rounded-t-xl z-10">
+                    <h2 className="text-2xl font-bold text-gray-800 flex items-center">
+                        <FileText size={24} className="mr-3 text-indigo-600" />
+                        Detalles de Solicitud #{solicitud.id}
+                    </h2>
+                    <button 
+                        onClick={onClose} 
+                        className="text-gray-400 hover:text-gray-700 p-2 rounded-full hover:bg-gray-100 transition"
+                        title="Cerrar"
+                    >
+                        <X size={24} />
+                    </button>
+                </div>
+
+                {loadingDetails ? (
+                    <div className="p-10 text-center text-indigo-600">
+                        <ComponentIcon size={32} className="mx-auto mb-3 animate-spin" />
+                        Cargando detalles de Revisión y Estado de Trabajo...
+                    </div>
+                ) : (
+                    <div className="p-6 space-y-8">
+                        
+                        {/* 1. SECCIÓN: DATOS GENERALES DE LA SOLICITUD */}
+                        <div className="border border-indigo-200 rounded-xl p-4 bg-indigo-50/50">
+                            <h3 className="text-lg font-bold text-indigo-700 mb-4 flex items-center">
+                                <FileText size={18} className="mr-2" />
+                                Información de Creación
+                            </h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                                <DetailItem icon={Clipboard} label="Pieza" value={solicitud.piezaNombre} />
+                                <DetailItem icon={Settings} label="Máquina" value={maquinaNombre} /> 
+                                <DetailItem icon={Clock} label="Turno" value={solicitud.turno} />
+                                <DetailItem icon={Zap} label="Tipo de Trabajo" value={solicitud.tipo} />
+                                
+                                {/* USANDO EL NUEVO COMPONENTE DE BADGE */}
+                                <PriorityBadge priority={priority} /> 
+                                
+                                <DetailItem icon={Settings} label="Estado Operacional" value={solicitud.estadoOperacional} />
+                                <DetailItem icon={Clock} label="Solicitante" value={solicitud.solicitanteNombre} />
+                                <DetailItem icon={MapPin} label="Área de la Pieza" value={areaNombre} /> 
+                            </div>
+                            
+                            <div className="mt-4 p-3 bg-white rounded-lg border">
+                                <p className="text-xs font-medium text-gray-500 mb-1">Detalles del Problema:</p>
+                                <p className="text-sm text-gray-800 italic">{solicitud.detalles}</p>
+                            </div>
+                            {solicitud.dibujo && (
+                                <div className="mt-2 text-sm">
+                                    <a href={solicitud.dibujo} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 font-medium">
+                                        Ver Enlace al Dibujo/Plano
+                                    </a>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* 2. SECCIÓN: DETALLE DE REVISIÓN */}
+                        <div className="border border-blue-200 rounded-xl p-4 bg-blue-50/50">
+                            <h3 className="text-lg font-bold text-blue-700 mb-4 flex items-center">
+                                <Settings size={18} className="mr-2" />
+                                Revisión de Ingeniería
+                            </h3>
+                            {revision ? (
+                                <div className="space-y-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                        {/* PROPIEDADES CORREGIDAS SEGÚN EL JSON (revisor.nombre, prioridad, fechaHoraRevision) */}
+                                        <DetailItem icon={UserCheck} label="Revisor" value={revision.revisor?.nombre} /> 
+                                        <DetailItem icon={Clipboard} label="Prioridad Asignada" value={revision.prioridad} /> 
+                                        <DetailItem icon={Clock} label="Fecha de Revisión" value={new Date(revision.fechaHoraRevision).toLocaleString()} />
+                                    </div>
+                                    <div className="p-3 bg-white rounded-lg border">
+                                        <p className="text-xs font-medium text-gray-500 mb-1">Comentarios del Revisor:</p>
+                                        <p className="text-sm text-gray-800 italic">{revision.comentarios || 'Sin comentarios.'}</p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <p className="text-sm text-blue-600 italic">Pendiente de revisión de Ingeniería.</p>
+                            )}
+                        </div>
+                        
+                        {/* 3. SECCIÓN: ESTADO DE TRABAJO Y ASIGNACIÓN */}
+                        <div className="border border-green-200 rounded-xl p-4 bg-green-50/50">
+                            <h3 className="text-lg font-bold text-green-700 mb-4 flex items-center">
+                                <Clipboard size={18} className="mr-2" />
+                                Estado y Asignación de Taller
+                            </h3>
+                            {estadoTrabajo ? (
+                                <div className="space-y-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                        {/* 🚨 PROPIEDAD CORREGIDA SEGÚN EL ÚLTIMO JSON (maquinistaAsignado) */}
+                                        <DetailItem icon={UserCheck} label="Maquinista Asignado" value={estadoTrabajo.maquinistaAsignado || 'N/A'} /> 
+                                        <DetailItem icon={Settings} label="Máquina Asignada" value={estadoTrabajo.maquinaAsignada} />
+                                        <DetailItem icon={Clipboard} label="Estado Taller" value={estadoTrabajo.estadoActual} />
+                                        <DetailItem icon={Clock} label="Fecha Última Actualización" value={new Date(estadoTrabajo.fechaHoraActualizacion).toLocaleString()} />
+                                    </div>
+                                    <div className="p-3 bg-white rounded-lg border">
+                                        <p className="text-xs font-medium text-gray-500 mb-1">Comentarios/Notas del Taller:</p>
+                                        <p className="text-sm text-gray-800 italic">{estadoTrabajo.notasOperacionales || 'Sin notas del maquinista.'}</p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <p className="text-sm text-green-600 italic">Aún no se ha iniciado el seguimiento del estado de trabajo.</p>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+// ----------------------------------------------------------------------
+// COMPONENTE PARA UNA FILA DE SOLICITUD (Sin cambios)
+// ----------------------------------------------------------------------
+function SolicitudTableRow({ solicitud, maquinistaMap, onRowClick }) {
     const daysOpen = useMemo(() => {
         if (!solicitud.fechaYHora) return 'N/A';
         
@@ -80,16 +249,17 @@ function SolicitudTableRow({ solicitud, maquinistaMap }) {
         
     }, [solicitud.fechaYHora, solicitud.prioridadActual, solicitud.estadoOperacional]);
 
-    // 🚨 LÓGICA FUSIONADA: Obtener nombre del mapa o usar fallbacks
     const assignedMaquinistaName = maquinistaMap[solicitud.id];
 
     return (
-        <tr className="hover:bg-gray-50 cursor-pointer border-b">
+        <tr 
+            className="hover:bg-gray-50 cursor-pointer border-b transition duration-150 hover:bg-indigo-50/50"
+            onClick={() => onRowClick(solicitud)}
+        >
             <Td className="font-semibold text-indigo-600">{solicitud.id}</Td>
             <Td>{solicitud.piezaNombre} ({solicitud.maquina})</Td>
             <Td className="text-gray-500">{solicitud.solicitanteNombre}</Td>
             
-            {/* Prioridad Actual */}
             <Td>
                 <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border ${getPriorityClasses(solicitud.prioridadActual || 'Pendiente')}`}>
                     {solicitud.prioridadActual || 'Pendiente'}
@@ -101,23 +271,12 @@ function SolicitudTableRow({ solicitud, maquinistaMap }) {
             </Td>
             <Td className="text-gray-500">{new Date(solicitud.fechaYHora).toLocaleDateString()}</Td>
             
-            {/* 🚨 RESPONSABLE FUSIONADO: Prioridad al mapa, luego al DTO, luego N/A */}
             <Td className="font-medium text-gray-700">
                 {assignedMaquinistaName || solicitud.maquinistaAsignadoNombre || solicitud.revisorNombre || 'N/A'}
             </Td>
             
-            {/* DÍAS ABIERTOS */}
             <Td className="text-gray-500 font-medium">{daysOpen}</Td>
             
-            <Td>
-                <button
-                    onClick={(e) => { e.stopPropagation(); navigate(`/solicitudes/${solicitud.id}`); }}
-                    className="text-indigo-600 hover:text-indigo-900 p-1 rounded hover:bg-indigo-100 transition duration-150"
-                    title="Ver Detalles"
-                >
-                    <Eye size={18} />
-                </button>
-            </Td>
         </tr>
     );
 }
@@ -127,22 +286,32 @@ function SolicitudTableRow({ solicitud, maquinistaMap }) {
 // ----------------------------------------------------------------------
 export default function Dashboard() {
     const { isAuthenticated } = useAuth();
-    const navigate = useNavigate();
-
+    
+    // --- ESTADOS DE DATOS ---
     const [solicitudes, setSolicitudes] = useState([]);
-    const [loadingSolicitudes, setLoadingSolicitudes] = useState(true);
-
-    // 🚨 NUEVO ESTADO: Mapa para buscar el maquinista por ID de Solicitud (Traído de Dashboard2)
     const [maquinistaMap, setMaquinistaMap] = useState({}); 
 
+    // --- ESTADOS DE CARGA ---
+    const [loadingSolicitudes, setLoadingSolicitudes] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
     const [filterPriority, setFilterPriority] = useState("active-only"); 
     
-    // 💡 ESTADOS DE PAGINACIÓN (Mantenido en 25 ítems como en tu original)
+    // --- ESTADOS DE PAGINACIÓN ---
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 25; 
 
-    // --- MANEJADORES DE ESTADO ---
+    // 🚨 ESTADOS PARA EL MODAL Y LOS DETALLES
+    const [selectedSolicitud, setSelectedSolicitud] = useState(null); 
+    const [detailData, setDetailData] = useState({ 
+        revision: null, 
+        estadoTrabajo: null,
+        pieceData: null,
+        areaData: null
+    });
+    const [loadingDetails, setLoadingDetails] = useState(false);
+
+
+    // --- MANEJADORES DE ESTADO (Sin cambios) ---
     const handleSearchChange = (e) => {
         setSearchTerm(e.target.value);
         setCurrentPage(1); 
@@ -151,8 +320,70 @@ export default function Dashboard() {
         setFilterPriority(e.target.value);
         setCurrentPage(1); 
     }
+    
+    // FUNCIÓN PARA CERRAR EL MODAL
+    const closeModal = () => {
+        setSelectedSolicitud(null);
+        setDetailData({ revision: null, estadoTrabajo: null, pieceData: null, areaData: null });
+    };
+    
+    // 🚨 FUNCIÓN PARA OBTENER LOS DETALLES COMPLEMENTARIOS (Lógica de Áreas y Piezas)
+    const fetchDetailData = async (solicitud) => {
+        setLoadingDetails(true);
+        const token = localStorage.getItem("authToken");
+        const headers = { 'Authorization': `Bearer ${token}` };
+        
+        const id = solicitud.id;
+        const idPieza = solicitud.idPieza; 
+        
+        let pieceData = null;
+        let areaData = null;
 
-    // --- LÓGICA DE CARGA DE ASIGNACIONES (Traído de Dashboard2) ---
+        try {
+            // 1. Fetch de Revisión y EstadoTrabajo
+            const [revisionRes, estadoTrabajoRes] = await Promise.all([
+                fetch(`${API_REVISION_BASE_URL}/${id}`, { headers }),
+                fetch(`${API_ESTADO_TRABAJO_BASE_URL}/${id}`, { headers }),
+            ]);
+
+            const revision = revisionRes.ok ? await revisionRes.json() : null;
+            const estadoTrabajo = estadoTrabajoRes.ok ? await estadoTrabajoRes.json() : null;
+
+            // 2. Fetch de Detalles de Pieza
+            if (idPieza) {
+                const pieceRes = await fetch(`${API_PIEZA_BASE_URL}/${idPieza}`, { headers });
+                if (pieceRes.ok) {
+                    pieceData = await pieceRes.json();
+                    
+                    // 3. Fetch de Detalles de Área (usando idArea de la Pieza)
+                    if (pieceData.idArea) {
+                        const areaRes = await fetch(`${API_AREAS_BASE_URL}/${pieceData.idArea}`, { headers });
+                        if (areaRes.ok) {
+                            areaData = await areaRes.json();
+                        }
+                    }
+                }
+            }
+
+            setDetailData({ revision, estadoTrabajo, pieceData, areaData });
+
+        } catch (error) {
+            console.error("Error fetching detail data:", error);
+            // Si hay un error, aún mostramos la solicitud principal
+            setDetailData({ revision: null, estadoTrabajo: null, pieceData: null, areaData: null });
+        } finally {
+            setLoadingDetails(false);
+        }
+    };
+    
+    // FUNCIÓN QUE SE LLAMA AL HACER CLIC EN UNA FILA
+    const handleRowClick = (solicitud) => {
+        setSelectedSolicitud(solicitud);
+        fetchDetailData(solicitud); 
+    };
+
+
+    // --- LÓGICA DE CARGA DE DATOS PRINCIPALES (Mantenida) ---
     const fetchAssignments = async () => {
         if (!isAuthenticated) return;
         const token = localStorage.getItem("authToken");
@@ -169,7 +400,6 @@ export default function Dashboard() {
 
             const data = await response.json();
             
-            // Convertir la lista a un mapa para búsquedas rápidas
             const map = data.reduce((acc, item) => {
                 acc[item.idSolicitud] = item.maquinistaAsignadoNombre;
                 return acc;
@@ -186,6 +416,7 @@ export default function Dashboard() {
         if (!isAuthenticated) return;
         const token = localStorage.getItem("authToken");
         setLoadingSolicitudes(true);
+        closeModal(); 
 
         try {
             const response = await fetch(API_SOLICITUDES_URL, {
@@ -208,7 +439,7 @@ export default function Dashboard() {
         }
     };
 
-    // 🚨 EFECTO FUSIONADO: Llama a ambas APIs
+    // EFECTO: Llama a ambas APIs
     useEffect(() => {
         if (isAuthenticated) {
             fetchSolicitudes();
@@ -217,7 +448,7 @@ export default function Dashboard() {
     }, [isAuthenticated]);
 
     // ----------------------------------------------------------------------
-    // --- LÓGICA DE FILTRADO (useMemo) ---
+    // --- LÓGICA DE FILTRADO (useMemo - Mantenida) ---
     // ----------------------------------------------------------------------
     const filteredSolicitudes = useMemo(() => {
         let filtered = solicitudes;
@@ -228,7 +459,6 @@ export default function Dashboard() {
             filtered = filtered.filter(s =>
                 s.piezaNombre.toLowerCase().includes(lowerCaseSearchTerm) ||
                 s.solicitanteNombre.toLowerCase().includes(lowerCaseSearchTerm) ||
-                // 🚨 FUSIONADO: Buscar también en el mapa de maquinistas si ya cargó
                 (maquinistaMap[s.id]?.toLowerCase().includes(lowerCaseSearchTerm)) || 
                 (s.maquinistaAsignadoNombre?.toLowerCase().includes(lowerCaseSearchTerm)) || 
                 s.id.toString().includes(lowerCaseSearchTerm)
@@ -253,7 +483,7 @@ export default function Dashboard() {
     }, [solicitudes, searchTerm, filterPriority, maquinistaMap]);
     
     // ----------------------------------------------------------------------
-    // --- LÓGICA DE PAGINACIÓN (useMemo) ---
+    // --- LÓGICA DE PAGINACIÓN (useMemo - Mantenida) ---
     // ----------------------------------------------------------------------
     const totalItems = filteredSolicitudes.length;
     const totalPages = Math.ceil(totalItems / itemsPerPage);
@@ -287,7 +517,7 @@ export default function Dashboard() {
     };
 
     // ----------------------------------------------------------------------
-    // RENDERIZADO (Diseño original TUYO conservado)
+    // RENDERIZADO
     // ----------------------------------------------------------------------
     return (
         <div className="p-6 bg-gray-50 min-h-screen">
@@ -351,26 +581,25 @@ export default function Dashboard() {
                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha Creación</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Responsable</th> 
                                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Días Abierto</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
                             {loadingSolicitudes ? (
                                 <tr>
-                                    <Td colSpan="9" className="text-center py-8 text-indigo-500">Cargando solicitudes...</Td>
+                                    <Td colSpan="8" className="text-center py-8 text-indigo-500">Cargando solicitudes...</Td> 
                                 </tr>
                             ) : filteredSolicitudes.length > 0 ? (
-                                // 🚨 AQUÍ PASAMOS 'maquinistaMap' A LA FILA
                                 currentItems.map((s) => (
                                     <SolicitudTableRow 
                                         key={s.id} 
                                         solicitud={s} 
                                         maquinistaMap={maquinistaMap} 
+                                        onRowClick={handleRowClick}
                                     />
                                 ))
                             ) : (
                                 <tr>
-                                    <Td colSpan="9" className="text-center py-8 text-gray-500">
+                                    <Td colSpan="8" className="text-center py-8 text-gray-500">
                                         <AlertTriangle size={24} className="mx-auto mb-2 text-indigo-500" />
                                         No hay solicitudes que coincidan con los filtros.
                                     </Td>
@@ -380,7 +609,7 @@ export default function Dashboard() {
                     </table>
                 </div>
 
-                {/* CONTROLES DE PAGINACIÓN (Tu diseño original) */}
+                {/* CONTROLES DE PAGINACIÓN (Mantenido) */}
                 {totalPages > 1 && (
                     <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 rounded-b-xl">
                         <div className="flex flex-1 justify-between sm:hidden">
@@ -442,6 +671,14 @@ export default function Dashboard() {
                     </div>
                 )}
             </div>
+            
+            {/* INTEGRACIÓN DEL MODAL */}
+            <SolicitudDetailModal
+                solicitud={selectedSolicitud}
+                detailData={detailData}
+                loadingDetails={loadingDetails}
+                onClose={closeModal}
+            />
         </div>
     );
 }
