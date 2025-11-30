@@ -1,10 +1,8 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { 
     Search, Filter, ChevronLeft, ChevronRight, Component as ComponentIcon, AlertTriangle, 
-    // ICONOS PARA EL MODAL
-    X, FileText, Settings, Clock, Clipboard, Zap, UserCheck, MapPin, 
-    // NUEVO ICONO PARA TIMELINE
-    Activity 
+    // NUEVOS ICONOS PARA EL MODAL
+    X, FileText, Settings, Clock, Clipboard, Zap, UserCheck, MapPin, Activity 
 } from "lucide-react"; 
 
 import { useAuth } from "../context/AuthContext";
@@ -14,15 +12,10 @@ import API_BASE_URL from "../components/apiConfig";
 // DEFINICIÓN DE ENDPOINT Y CONSTANTES
 // ----------------------------------------------------------------------
 const API_SOLICITUDES_URL = `${API_BASE_URL}/Solicitudes`;
-// Endpoint para asignaciones (usado para el mapa de maquinistas)
+// Endpoint para asignaciones (usado para el mapa de maquinistas en la tabla)
 const API_ASSIGNMENTS_URL = `${API_BASE_URL}/EstadoTrabajo/Assignments`; 
-// ENDPOINTS ASUMIDOS PARA DETALLES
-const API_REVISION_BASE_URL = `${API_BASE_URL}/Revision`; 
-const API_ESTADO_TRABAJO_BASE_URL = `${API_BASE_URL}/EstadoTrabajo`; 
-// ENDPOINTS DE REFERENCIA
-const API_PIEZA_BASE_URL = `${API_BASE_URL}/piezas`; 
-// 🚨 ENDPOINT PARA DETALLES DE ÁREA (usado para Máquina/Área)
-const API_AREAS_BASE_URL = `${API_BASE_URL}/Areas`; 
+// 🚨 NUEVO ENDPOINT CONSOLIDADO para detalles del modal
+const API_FULL_DETAILS_URL = `${API_BASE_URL}/Dashboard/FullDetails`; 
 
 
 // 💡 Opciones de filtro
@@ -79,7 +72,7 @@ function EstadoTrabajoHistory({ history }) {
             {history.map((step, index) => {
                 const isLatest = index === 0;
                 
-                // Asume que el backend proporciona 'maquinistaNombre'
+                // Propiedades según el DTO consolidado del backend
                 const maquinista = step.maquinistaNombre || '—'; 
                 const inicio = new Date(step.fechaYHoraDeInicio).toLocaleString();
                 const fin = step.fechaYHoraDeFin ? new Date(step.fechaYHoraDeFin).toLocaleString() : 'En Proceso...';
@@ -135,7 +128,6 @@ function EstadoTrabajoHistory({ history }) {
 // COMPONENTE: MODAL DE DETALLES DE SOLICITUD
 // ----------------------------------------------------------------------
 
-// Componente: Badge de Prioridad con contorno oscuro
 function PriorityBadge({ priority }) {
     const priorityText = priority || 'Pendiente';
     const classes = getPriorityClasses(priorityText);
@@ -145,7 +137,6 @@ function PriorityBadge({ priority }) {
             <p className="text-xs font-medium text-gray-500 flex items-center mb-1">
                 <Clipboard size={14} className="mr-1 text-indigo-500" /> Prioridad Actual
             </p>
-            {/* Contorno oscuro añadido: border border-gray-500 */}
             <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${classes} border border-gray-500 shadow-sm`}>
                 {priorityText}
             </span>
@@ -157,7 +148,6 @@ function PriorityBadge({ priority }) {
 function SolicitudDetailModal({ solicitud, detailData, loadingDetails, onClose }) {
     if (!solicitud) return null;
 
-    // Helper para mostrar un item de detalle
     const DetailItem = ({ icon: Icon, label, value, className = "" }) => (
         <div className={`p-3 bg-white rounded-lg shadow-sm border ${className}`}>
             <p className="text-xs font-medium text-gray-500 flex items-center mb-1">
@@ -169,18 +159,19 @@ function SolicitudDetailModal({ solicitud, detailData, loadingDetails, onClose }
     
     const priority = solicitud.prioridadActual || 'Pendiente';
     
-    // Obtener datos de Máquina/Área (Prioridad: Área API > Pieza API > Solicitud DTO)
-    const areaNombre = detailData.areaData?.nombreArea || detailData.pieceData?.area?.nombreArea || solicitud.areaNombre;
-    const maquinaNombre = detailData.pieceData?.maquina || solicitud.maquina; 
-    
-    // 🚨 PROPIEDADES ACTUALIZADAS
+    // PROPIEDADES CONSOLIDADAS DEL NUEVO DTO (detailData)
     const revision = detailData.revision;
-    const estadoTrabajoLatest = detailData.estadoTrabajoLatest; // Último estado
-    const estadoTrabajoHistory = detailData.estadoTrabajoHistory; // Historial completo
-
+    const estadoTrabajoLatest = detailData.ultimoEstadoTrabajo; 
+    const estadoTrabajoHistory = detailData.historialTrabajo; 
+    
+    // 🚨 CORRECCIÓN 2: OBTENER TODOS LOS DATOS CONSOLIDADOS DESDE detailData
+    const maquinaNombre = detailData.maquina; 
+    const piezaNombre = detailData.piezaNombre;
+    const solicitanteNombre = detailData.solicitanteNombre;
+    const estadoOperacional = detailData.estadoOperacional;
+    const areaNombre = detailData.areaNombre; // Correcto, ya estaba en detailData
 
     return (
-        // Fondo con blur y color gris oscuro semitransparente
         <div className="fixed inset-0 z-50 overflow-y-auto bg-gray-800/70 backdrop-blur-sm flex items-start justify-center p-4 sm:p-6 lg:p-8">
             <div className="relative w-full max-w-4xl mt-10 mb-10 bg-white rounded-xl shadow-2xl transform transition-all">
                 
@@ -214,16 +205,16 @@ function SolicitudDetailModal({ solicitud, detailData, loadingDetails, onClose }
                                 Información de Creación
                             </h3>
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                                <DetailItem icon={Clipboard} label="Pieza" value={solicitud.piezaNombre} />
+                                {/* 🚨 Usamos las variables locales que apuntan a detailData */}
+                                <DetailItem icon={Clipboard} label="Pieza" value={piezaNombre} />
                                 <DetailItem icon={Settings} label="Máquina" value={maquinaNombre} /> 
                                 <DetailItem icon={Clock} label="Turno" value={solicitud.turno} />
                                 <DetailItem icon={Zap} label="Tipo de Trabajo" value={solicitud.tipo} />
                                 
-                                {/* USANDO EL NUEVO COMPONENTE DE BADGE */}
                                 <PriorityBadge priority={priority} /> 
                                 
-                                <DetailItem icon={Settings} label="Estado Operacional" value={solicitud.estadoOperacional} />
-                                <DetailItem icon={Clock} label="Solicitante" value={solicitud.solicitanteNombre} />
+                                <DetailItem icon={Settings} label="Estado Operacional" value={estadoOperacional} />
+                                <DetailItem icon={Clock} label="Solicitante" value={solicitanteNombre} />
                                 <DetailItem icon={MapPin} label="Área de la Pieza" value={areaNombre} /> 
                             </div>
                             
@@ -249,8 +240,8 @@ function SolicitudDetailModal({ solicitud, detailData, loadingDetails, onClose }
                             {revision ? (
                                 <div className="space-y-3">
                                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                        {/* PROPIEDADES CORREGIDAS SEGÚN EL JSON (revisor.nombre, prioridad, fechaHoraRevision) */}
-                                        <DetailItem icon={UserCheck} label="Revisor" value={revision.revisor?.nombre} /> 
+                                        {/* Usando propiedades del DTO anidado */}
+                                        <DetailItem icon={UserCheck} label="Revisor" value={revision.revisorNombre} /> 
                                         <DetailItem icon={Clipboard} label="Prioridad Asignada" value={revision.prioridad} /> 
                                         <DetailItem icon={Clock} label="Fecha de Revisión" value={new Date(revision.fechaHoraRevision).toLocaleString()} />
                                     </div>
@@ -260,7 +251,7 @@ function SolicitudDetailModal({ solicitud, detailData, loadingDetails, onClose }
                                     </div>
                                 </div>
                             ) : (
-                                <p className="text-sm text-blue-600 italic">Pendiente de revisión de Ingeniería.</p>
+                                <p className="text-sm text-blue-600 italic">Pendiente de revisión por Ingeniería.</p>
                             )}
                         </div>
                         
@@ -273,7 +264,7 @@ function SolicitudDetailModal({ solicitud, detailData, loadingDetails, onClose }
                             {estadoTrabajoLatest ? (
                                 <div className="space-y-3">
                                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                        {/* 🚨 PROPIEDAD CORREGIDA SEGÚN EL ÚLTIMO JSON (maquinistaAsignadoNombre) */}
+                                        {/* Usando propiedades del DTO anidado */}
                                         <DetailItem icon={UserCheck} label="Maquinista Asignado" value={estadoTrabajoLatest.maquinistaNombre || 'N/A'} /> 
                                         <DetailItem icon={Settings} label="Máquina Asignada" value={estadoTrabajoLatest.maquinaAsignada} />
                                         <DetailItem icon={Clipboard} label="Estado Actual" value={estadoTrabajoLatest.descripcionOperacion} />
@@ -305,7 +296,7 @@ function SolicitudDetailModal({ solicitud, detailData, loadingDetails, onClose }
 }
 
 // ----------------------------------------------------------------------
-// COMPONENTE PARA UNA FILA DE SOLICITUD (Sin cambios)
+// COMPONENTE PARA UNA FILA DE SOLICITUD (Mantenido)
 // ----------------------------------------------------------------------
 function SolicitudTableRow({ solicitud, maquinistaMap, onRowClick }) {
     const daysOpen = useMemo(() => {
@@ -377,16 +368,19 @@ export default function Dashboard() {
     
     // --- ESTADOS DE PAGINACIÓN ---
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 25; 
+    const itemsPerPage = 25; // <--- DECLARACIÓN CORRECTA (Se usa en el ámbito de la función Dashboard)
 
-    // 🚨 ESTADOS PARA EL MODAL Y LOS DETALLES (ACTUALIZADOS)
+    // ESTADOS PARA EL MODAL Y LOS DETALLES
     const [selectedSolicitud, setSelectedSolicitud] = useState(null); 
     const [detailData, setDetailData] = useState({ 
         revision: null, 
-        estadoTrabajoLatest: null,      // Último estado (para Sección 3)
-        estadoTrabajoHistory: [],       // Historial completo (para Sección 4)
-        pieceData: null,
-        areaData: null
+        ultimoEstadoTrabajo: null,      
+        historialTrabajo: [],           
+        areaNombre: null,
+        maquina: null, // <-- Inicializar para el nuevo campo
+        piezaNombre: null, // <-- Inicializar para el nuevo campo
+        solicitanteNombre: null, // <-- Inicializar para el nuevo campo
+        estadoOperacional: null, // <-- Inicializar para el nuevo campo
     });
     const [loadingDetails, setLoadingDetails] = useState(false);
 
@@ -401,73 +395,70 @@ export default function Dashboard() {
         setCurrentPage(1); 
     }
     
-    // FUNCIÓN PARA CERRAR EL MODAL
     const closeModal = () => {
         setSelectedSolicitud(null);
-        setDetailData({ revision: null, estadoTrabajoLatest: null, estadoTrabajoHistory: [], pieceData: null, areaData: null });
+        setDetailData({ 
+            revision: null, 
+            ultimoEstadoTrabajo: null, 
+            historialTrabajo: [], 
+            areaNombre: null,
+            maquina: null,
+            piezaNombre: null,
+            solicitanteNombre: null,
+            estadoOperacional: null
+        });
     };
     
-    // 🚨 FUNCIÓN PARA OBTENER LOS DETALLES COMPLEMENTARIOS (Lógica de Áreas y Piezas)
+    // FUNCIÓN CRÍTICA: Ahora usa UNA SOLA LLAMADA API
     const fetchDetailData = async (solicitud) => {
         setLoadingDetails(true);
         const token = localStorage.getItem("authToken");
         const headers = { 'Authorization': `Bearer ${token}` };
         
-        const id = solicitud.id;
-        const idPieza = solicitud.idPieza; 
-        
-        let pieceData = null;
-        let areaData = null;
+        const idSolicitud = solicitud.id; 
 
         try {
-            // 1. Fetch de Revisión y EstadoTrabajo
-            // Asumo /EstadoTrabajo/History/{id} es el endpoint para el historial
-            const [revisionRes, estadoTrabajoLatestRes, estadoTrabajoHistoryRes] = await Promise.all([
-                fetch(`${API_REVISION_BASE_URL}/${id}`, { headers }),
-                fetch(`${API_ESTADO_TRABAJO_BASE_URL}/${id}`, { headers }), // Último estado (para Sección 3)
-                fetch(`${API_ESTADO_TRABAJO_BASE_URL}/History/${id}`, { headers }), // Historial completo (para Sección 4)
-            ]);
+            // ÚNICA LLAMADA AL ENDPOINT CONSOLIDADO del DashboardController
+            const response = await fetch(`${API_FULL_DETAILS_URL}/${idSolicitud}`, { headers });
 
-            const revision = revisionRes.ok ? await revisionRes.json() : null;
-            const estadoTrabajoLatest = estadoTrabajoLatestRes.ok ? await estadoTrabajoLatestRes.json() : null;
-
-            let estadoTrabajoHistory = [];
-            if (estadoTrabajoHistoryRes.ok) {
-                 estadoTrabajoHistory = await estadoTrabajoHistoryRes.json();
-                 // Ordenar por fecha de inicio descendente para el timeline
-                 estadoTrabajoHistory.sort((a, b) => new Date(b.fechaYHoraDeInicio) - new Date(a.fechaYHoraDeInicio));
+            if (!response.ok) {
+                throw new Error("Fallo al cargar los detalles completos de la solicitud desde el DashboardController.");
             }
 
-
-            // 2. Fetch de Detalles de Pieza
-            if (idPieza) {
-                const pieceRes = await fetch(`${API_PIEZA_BASE_URL}/${idPieza}`, { headers });
-                if (pieceRes.ok) {
-                    pieceData = await pieceRes.json();
-                    
-                    // 3. Fetch de Detalles de Área (usando idArea de la Pieza)
-                    if (pieceData.idArea) {
-                        const areaRes = await fetch(`${API_AREAS_BASE_URL}/${pieceData.idArea}`, { headers });
-                        if (areaRes.ok) {
-                            areaData = await areaRes.json();
-                        }
-                    }
-                }
-            }
-
-            // 🚨 ACTUALIZACIÓN DE ESTADO CON NUEVOS NOMBRES
-            setDetailData({ revision, estadoTrabajoLatest, estadoTrabajoHistory, pieceData, areaData });
+            const data = await response.json(); 
+            
+            // 🚨 CORRECCIÓN 1: Mapeo directo de todos los campos consolidados al estado detailData
+            setDetailData({
+                // Propiedades anidadas
+                revision: data.revision,
+                ultimoEstadoTrabajo: data.ultimoEstadoTrabajo,
+                historialTrabajo: data.historialTrabajo || [], 
+                
+                // Propiedades de nivel superior (consolidada) que se necesitan en el modal
+                areaNombre: data.areaNombre,
+                maquina: data.maquina, // <-- ¡Esto garantiza que la máquina esté aquí!
+                piezaNombre: data.piezaNombre, 
+                solicitanteNombre: data.solicitanteNombre,
+                estadoOperacional: data.estadoOperacional,
+            });
 
         } catch (error) {
-            console.error("Error fetching detail data:", error);
-            // Si hay un error, aún mostramos la solicitud principal
-            setDetailData({ revision: null, estadoTrabajoLatest: null, estadoTrabajoHistory: [], pieceData: null, areaData: null });
+            console.error("Error fetching detail data from DashboardController:", error);
+            setDetailData({ 
+                revision: null, 
+                ultimoEstadoTrabajo: null, 
+                historialTrabajo: [], 
+                areaNombre: null, 
+                maquina: null, 
+                piezaNombre: null,
+                solicitanteNombre: null,
+                estadoOperacional: null
+            });
         } finally {
             setLoadingDetails(false);
         }
     };
     
-    // FUNCIÓN QUE SE LLAMA AL HACER CLIC EN UNA FILA
     const handleRowClick = (solicitud) => {
         setSelectedSolicitud(solicitud);
         fetchDetailData(solicitud); 
@@ -539,12 +530,10 @@ export default function Dashboard() {
     }, [isAuthenticated]);
 
     // ----------------------------------------------------------------------
-    // --- LÓGICA DE FILTRADO (useMemo - Mantenida) ---
+    // --- LÓGICA DE FILTRADO Y PAGINACIÓN (Mantenida) ---
     // ----------------------------------------------------------------------
     const filteredSolicitudes = useMemo(() => {
         let filtered = solicitudes;
-
-        // 1. Filtrar por Búsqueda
         if (searchTerm) {
             const lowerCaseSearchTerm = searchTerm.toLowerCase();
             filtered = filtered.filter(s =>
@@ -556,26 +545,18 @@ export default function Dashboard() {
             );
         }
 
-        // 2. Aplicar Filtro de Prioridad/Vista
         if (filterPriority !== 'all') {
             filtered = filtered.filter(s => {
                 const currentPriority = s.prioridadActual || 'Pendiente'; 
-                
                 if (filterPriority === 'active-only') {
                     return ['Baja', 'Media', 'Alta', 'Urgente'].includes(currentPriority);
                 }
-                
                 return currentPriority === filterPriority;
             });
         }
-
-        // Ordenar por ID descendente
         return filtered.sort((a, b) => b.id - a.id); 
     }, [solicitudes, searchTerm, filterPriority, maquinistaMap]);
     
-    // ----------------------------------------------------------------------
-    // --- LÓGICA DE PAGINACIÓN (useMemo - Mantenida) ---
-    // ----------------------------------------------------------------------
     const totalItems = filteredSolicitudes.length;
     const totalPages = Math.ceil(totalItems / itemsPerPage);
     const startIndex = (currentPage - 1) * itemsPerPage;
@@ -595,11 +576,9 @@ export default function Dashboard() {
         const maxPagesToShow = 5;
         let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
         let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
-
         if (endPage - startPage + 1 < maxPagesToShow) {
             startPage = Math.max(1, endPage - maxPagesToShow + 1);
         }
-
         const pages = [];
         for (let i = startPage; i <= endPage; i++) {
             pages.push(i);
@@ -700,7 +679,7 @@ export default function Dashboard() {
                     </table>
                 </div>
 
-                {/* CONTROLES DE PAGINACIÓN (Mantenido) */}
+                {/* CONTROLES DE PAGINACIÓN */}
                 {totalPages > 1 && (
                     <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 rounded-b-xl">
                         <div className="flex flex-1 justify-between sm:hidden">

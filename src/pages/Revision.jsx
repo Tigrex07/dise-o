@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Briefcase, Clock, Zap, AlertTriangle, Save, RefreshCw, X, ChevronLeft, ChevronRight } from 'lucide-react'; 
+// 💥 Corrección de Imports (UserCheck y Search)
+import { Briefcase, Clock, Zap, AlertTriangle, Save, RefreshCw, X, ChevronLeft, ChevronRight, UserCheck, Search, FileText } from 'lucide-react'; 
 
 // --- IMPORTS CRÍTICAS ---
 import { useAuth } from '../context/AuthContext'; 
@@ -9,7 +10,6 @@ import API_BASE_URL from '../components/apiConfig';
 // URL de los Endpoints
 const API_SOLICITUDES_URL = `${API_BASE_URL}/Solicitudes`;
 const API_REVISION_URL = `${API_BASE_URL}/Revision`; 
-// 💡 NUEVOS ENDPOINTS ASUMIDOS
 const API_MAQUINISTAS_URL = `${API_BASE_URL}/Usuarios/Maquinistas`;
 
 
@@ -29,8 +29,8 @@ const getPriorityClasses = (priority) => {
         case "Alta": return "text-red-700 bg-red-100 font-medium";
         case "Media": return "text-yellow-700 bg-yellow-100 font-medium";
         case "Baja": return "text-green-700 bg-green-100 font-medium";
-        case "En Revisión": 
-        case "Pendiente": 
+        case "En Revisión":
+        case "Pendiente":
             return "text-gray-700 bg-gray-200 font-medium";
         case "RECHAZADA": 
             return "text-white bg-gray-600 font-bold"; 
@@ -38,109 +38,120 @@ const getPriorityClasses = (priority) => {
     }
 };
 
-// Item de Detalle (para el formulario)
-function DetailItem({ label, value }) {
+// Componente para mostrar detalles de la solicitud seleccionada
+function DetailItem({ icon: Icon, label, value }) {
     return (
-        <div>
-            <p className="font-medium text-gray-700 text-xs uppercase">{label}:</p>
-            <p className="text-sm text-gray-900 font-semibold">{value || 'N/A'}</p>
+        <div className="p-3 bg-white rounded-lg shadow-sm border">
+            <p className="text-xs font-medium text-gray-500 flex items-center mb-1">
+                <Icon size={14} className="mr-1 text-blue-500" /> {label}
+            </p>
+            <p className="text-sm font-semibold text-gray-900">{value || 'N/A'}</p>
         </div>
     );
 }
 
-
-// --- COMPONENTE PRINCIPAL DE REVISIÓN ---
-export default function Revision() {
-    const { user, isAuthenticated } = useAuth(); 
+// ----------------------------------------------------------------------
+// COMPONENTE PARA UNA FILA DE SOLICITUD
+// ----------------------------------------------------------------------
+function SolicitudTableRow({ solicitud, onRowClick }) {
     
-    const [solicitudes, setSolicitudes] = useState([]);
-    // 💡 NUEVO ESTADO: Listas de asignación
-    const [maquinistas, setMaquinistas] = useState([]);
-
-    
-    const [loadingSolicitudes, setLoadingSolicitudes] = useState(true);
-    const [loadingAssignmentData, setLoadingAssignmentData] = useState(true); // Nuevo estado de carga
-    
-    const [selectedSolicitud, setSelectedSolicitud] = useState(null);
-    const [isSaving, setIsSaving] = useState(false);
-    
-    // 🚨 MODIFICACIÓN: Añadimos los campos de asignación al estado
-    const [revisionData, setRevisionData] = useState({
-        prioridad: 'Media',
-        comentarios: '', 
-        idMaquinistaAsignado: '', // 💡 ID del Maquinista seleccionado
-    });
-
-    // 💡 ESTADOS DE PAGINACIÓN
-    const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 15; // Límite por página (15)
-
-    // ----------------------------------------------------------------------
-    // --- LÓGICA DE CARGA DE DATOS DE ASIGNACIÓN (NUEVA FUNCIÓN) ---
-    // ----------------------------------------------------------------------
-    const fetchAssignmentData = async () => {
-        if (!isAuthenticated) return;
-        const token = localStorage.getItem('authToken');
-        const headers = { 'Authorization': `Bearer ${token}` };
-        setLoadingAssignmentData(true);
-
-        try {
-            // Fetch Maquinistas and Máquinas en paralelo
-            const [resMaquinistas] = await Promise.all([
-                fetch(API_MAQUINISTAS_URL, { headers })
-                
-            ]);
-
-            const dataMaquinistas = resMaquinistas.ok ? await resMaquinistas.json() : [];
-
-
-            setMaquinistas(dataMaquinistas);
-
-            
-            // Establecer valores por defecto iniciales para los selects
-            setRevisionData(prev => ({ 
-                ...prev, 
-                idMaquinistaAsignado: dataMaquinistas.length > 0 ? dataMaquinistas[0].id : ''
-
-            }));
-
-        } catch (error) {
-            console.error("Error al obtener datos de asignación:", error);
-        } finally {
-            setLoadingAssignmentData(false);
+    // ... Lógica daysOpen ... (se asume que es correcta)
+    const daysOpen = useMemo(() => {
+        if (!solicitud.fechaYHora || solicitud.prioridadActual === 'RECHAZADA' || solicitud.prioridadActual === 'Completado') {
+            return 'N/A';
         }
-    };
-    
-    // ----------------------------------------------------------------------
-    // --- LÓGICA DE CARGA DE SOLICITUDES (Incluye botón de recarga) ---
-    // ----------------------------------------------------------------------
-    const fetchSolicitudes = async () => {
-        // ... (código existente) ...
-        if (!isAuthenticated) {
-            console.error("Usuario no autenticado, no se pueden cargar solicitudes.");
-            setLoadingSolicitudes(false);
-            return;
-        }
-
-        const token = localStorage.getItem('authToken');
-        setLoadingSolicitudes(true);
-        setSelectedSolicitud(null); 
-        setCurrentPage(1); // Resetear a página 1 al recargar
         
+        const start = new Date(solicitud.fechaYHora);
+        const diffTime = Date.now() - start.getTime();
+        const ONE_DAY_MS = 1000 * 60 * 60 * 24;
+        
+        if (diffTime < ONE_DAY_MS) {
+            return '< 1 Día';
+        }
+        const diffDays = Math.ceil(diffTime / ONE_DAY_MS);
+        return diffDays;
+    }, [solicitud.fechaYHora, solicitud.prioridadActual]);
+
+    return (
+        <tr 
+            className="hover:bg-gray-50 cursor-pointer border-b transition duration-150 hover:bg-indigo-50/50"
+            onClick={() => onRowClick(solicitud)}
+        >
+            <Td className="font-semibold text-indigo-600">{solicitud.id}</Td>
+            
+            {/* ✅ Pieza (Máquina) en la tabla */}
+            <Td>
+                {solicitud.piezaNombre} 
+                <span className="text-gray-500 text-xs"> 
+                    ({solicitud.maquina || 'N/A'})
+                </span>
+            </Td>
+
+            <Td className="text-gray-500">{solicitud.solicitanteNombre}</Td>
+            
+            <Td>
+                <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border ${getPriorityClasses(solicitud.prioridadActual || 'Pendiente')}`}>
+                    {solicitud.prioridadActual || 'Pendiente'}
+                </span>
+            </Td>
+            
+            <Td className={`font-medium ${solicitud.prioridadActual === 'En Revisión' ? 'text-red-600' : 'text-green-600'}`}>
+                {solicitud.estadoOperacional || 'N/A'}
+            </Td>
+            <Td className="text-gray-500">{new Date(solicitud.fechaYHora).toLocaleDateString()}</Td>
+            <Td className="text-gray-500 font-medium">{daysOpen}</Td>
+        </tr>
+    );
+}
+
+
+// ----------------------------------------------------------------------
+// COMPONENTE PRINCIPAL: REVISION
+// ----------------------------------------------------------------------
+export default function Revision() {
+    const { isAuthenticated, user } = useAuth(); 
+    
+    // --- ESTADOS ---
+    const [solicitudes, setSolicitudes] = useState([]);
+    const [maquinistas, setMaquinistas] = useState([]); 
+    const [selectedSolicitud, setSelectedSolicitud] = useState(null); 
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    
+    // --- ESTADOS DE UI/CARGA ---
+    const [loadingSolicitudes, setLoadingSolicitudes] = useState(true);
+    const [loadingDetails, setLoadingDetails] = useState(false); // Para detalles al abrir modal
+    const [isSaving, setIsSaving] = useState(false);
+    const [searchTerm, setSearchTerm] = useState("");
+    
+    // --- ESTADOS DE PAGINACIÓN ---
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 10;
+    
+
+    // --- FETCH DE DATOS ---
+    const fetchSolicitudes = async () => {
+        if (!isAuthenticated) return;
+        const token = localStorage.getItem("authToken");
+        setLoadingSolicitudes(true);
+        // setSelectedSolicitud(null); // No limpiar aquí para no cerrar el modal inesperadamente
+        setIsModalOpen(false); // Asegurar que el modal se cierre al recargar la tabla
+
         try {
             const response = await fetch(API_SOLICITUDES_URL, {
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                },
+                headers: { 'Authorization': `Bearer ${token}` },
             });
 
             if (!response.ok) {
-                throw new Error('Fallo al cargar las solicitudes');
+                throw new Error("Fallo al cargar las solicitudes");
             }
 
             const data = await response.json();
-            setSolicitudes(data);
-            
+            // Filtramos solo las que están "En Revisión" o no tienen prioridad asignada
+            const pendientes = data.filter(s => 
+                s.prioridadActual === 'En Revisión' || !s.prioridadActual
+            );
+            setSolicitudes(pendientes);
+
         } catch (error) {
             console.error("Error al obtener solicitudes:", error);
             setSolicitudes([]);
@@ -148,31 +159,148 @@ export default function Revision() {
             setLoadingSolicitudes(false);
         }
     };
+    
+    // 💡 Nueva función para obtener los detalles completos al abrir el modal
+    const fetchSolicitudDetails = async (solicitudId) => {
+        const token = localStorage.getItem("authToken");
+        setLoadingDetails(true);
+        try {
+            // Asumimos que podemos hacer un GET a /Solicitudes/{id} para detalles completos
+            const response = await fetch(`${API_SOLICITUDES_URL}/${solicitudId}`, {
+                headers: { 'Authorization': `Bearer ${token}` },
+            });
+            if (!response.ok) throw new Error("Fallo al cargar detalles de la solicitud");
+            
+            const detailData = await response.json();
+            return detailData;
+        } catch (error) {
+            console.error("Error fetching solicitud details:", error);
+            return null;
+        } finally {
+            setLoadingDetails(false);
+        }
+    };
+    
+    const fetchMaquinistas = async () => {
+        if (!isAuthenticated) return;
+        const token = localStorage.getItem("authToken");
+
+        try {
+            const response = await fetch(API_MAQUINISTAS_URL, {
+                headers: { 'Authorization': `Bearer ${token}` },
+            });
+
+            if (!response.ok) {
+                throw new Error("Fallo al cargar maquinistas");
+            }
+
+            const data = await response.json();
+            setMaquinistas(data);
+
+        } catch (error) {
+            console.error("Error al obtener maquinistas:", error);
+            setMaquinistas([]);
+        }
+    };
 
     useEffect(() => {
-        fetchSolicitudes();
-        fetchAssignmentData(); // 💡 CARGA INICIAL DE DATOS DE ASIGNACIÓN
-    }, [isAuthenticated]); 
+        if (isAuthenticated) {
+            fetchSolicitudes();
+            fetchMaquinistas();
+        }
+    }, [isAuthenticated]);
 
-    // ----------------------------------------------------------------------
-    // --- LÓGICA DE FILTRADO (Por Prioridad Pendiente/En Revisión) ---
-    // ----------------------------------------------------------------------
-    const filteredSolicitudes = useMemo(() => {
-        const PENDING_PRIORITY_VALUES = ["en revisión", "pendiente", null, undefined, ""]; 
+    // --- MANEJADORES DE UI ---
+    // ✅ Lógica similar al Dashboard para abrir el Modal y obtener detalles
+    const handleSelectSolicitud = async (solicitud) => {
+        // Usamos la solicitud de la tabla como base, luego buscamos el detalle completo
+        setSelectedSolicitud(solicitud);
+        setIsModalOpen(true);
         
-        return solicitudes
-            .filter(s => {
-                const currentPriority = s.prioridadActual ? s.prioridadActual.toLowerCase().trim() : '';
-                
-                // Mantenemos el filtro para ver solo lo que necesita tu acción
-                return PENDING_PRIORITY_VALUES.includes(currentPriority) && currentPriority !== "rechazada";
-            }) 
-            .sort((a, b) => new Date(a.fechaYHora) - new Date(b.fechaYHora)); 
-    }, [solicitudes]);
+        const fullDetails = await fetchSolicitudDetails(solicitud.id);
+        
+        if (fullDetails) {
+            // Si el detalle se cargó, actualizar con la info completa (incluyendo Máquina)
+            setSelectedSolicitud(fullDetails);
+        } else {
+            // Si falla, al menos mostramos la info de la tabla
+            console.warn("No se pudo obtener el detalle completo, mostrando datos de la tabla.");
+        }
+    };
+    
+    const closeModal = () => {
+        setIsModalOpen(false);
+        setSelectedSolicitud(null);
+    };
 
-    // ----------------------------------------------------------------------
-    // --- LÓGICA DE PAGINACIÓN (Igual al Dashboard) ---
-    // ----------------------------------------------------------------------
+    // --- LÓGICA DE ENVÍO DE FORMULARIO ---
+    const handleSubmitRevision = async (revisionData) => {
+        if (!selectedSolicitud || isSaving) return;
+
+        // Validar que se haya seleccionado un maquinista si la prioridad no es 'RECHAZADA'
+        if (revisionData.prioridad !== 'RECHAZADA' && !revisionData.idMaquinistaAsignado) {
+            alert('Por favor, asigne un maquinista antes de aprobar la solicitud.');
+            return;
+        }
+
+        setIsSaving(true);
+        const token = localStorage.getItem("authToken");
+        
+        const idRevisor = user?.id; 
+
+        const revisionPayload = {
+            idSolicitud: selectedSolicitud.id,
+            idRevisor: idRevisor, 
+            prioridad: revisionData.prioridad,
+            comentarios: revisionData.comentarios,
+            idMaquinistaAsignado: revisionData.prioridad !== 'RECHAZADA' ? revisionData.idMaquinistaAsignado : null,
+            fechaHoraRevision: new Date().toISOString(),
+        };
+        
+        try {
+            const response = await fetch(API_REVISION_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                },
+                body: JSON.stringify(revisionPayload),
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Error al guardar la revisión: ${errorText}`);
+            }
+
+            alert(`Solicitud #${selectedSolicitud.id} revisada y guardada correctamente.`);
+            
+            // Recargar la lista de solicitudes y cerrar el modal
+            await fetchSolicitudes();
+            closeModal();
+
+        } catch (error) {
+            console.error("Error en el envío de la revisión:", error);
+            alert(`Fallo al guardar la revisión: ${error.message}`);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+    
+
+    // --- LÓGICA DE FILTRADO Y PAGINACIÓN ---
+    const filteredSolicitudes = useMemo(() => {
+        let filtered = solicitudes;
+        if (searchTerm) {
+            const lowerCaseSearchTerm = searchTerm.toLowerCase();
+            filtered = filtered.filter(s =>
+                s.piezaNombre.toLowerCase().includes(lowerCaseSearchTerm) ||
+                s.solicitanteNombre.toLowerCase().includes(lowerCaseSearchTerm) ||
+                s.id.toString().includes(lowerCaseSearchTerm)
+            );
+        }
+        return filtered.sort((a, b) => b.id - a.id); 
+    }, [solicitudes, searchTerm]);
+    
     const totalItems = filteredSolicitudes.length;
     const totalPages = Math.ceil(totalItems / itemsPerPage);
     const startIndex = (currentPage - 1) * itemsPerPage;
@@ -187,490 +315,360 @@ export default function Revision() {
             setCurrentPage(page);
         }
     };
-
+    
     const getPageNumbers = () => {
         const maxPagesToShow = 5;
         let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
         let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
-
         if (endPage - startPage + 1 < maxPagesToShow) {
             startPage = Math.max(1, endPage - maxPagesToShow + 1);
         }
-
         const pages = [];
         for (let i = startPage; i <= endPage; i++) {
             pages.push(i);
         }
         return pages;
     };
-    
-    // ----------------------------------------------------------------------
-    // --- MANEJO DE SELECCIÓN Y DATOS DEL FORMULARIO ---
-    // ----------------------------------------------------------------------
-    const handleSelectSolicitud = (solicitud) => {
-        setSelectedSolicitud(solicitud);
-        
-        const initialPriority = (solicitud.prioridadActual === "En Revisión" || solicitud.prioridadActual === "Pendiente" || !solicitud.prioridadActual)
-            ? 'Media' 
-            : solicitud.prioridadActual; 
-            
-        // 🚨 MODIFICACIÓN: Inicializamos los campos de asignación a sus valores por defecto
-        setRevisionData({
-            prioridad: initialPriority, 
-            comentarios: '',
-            idMaquinistaAsignado: maquinistas.length > 0 ? maquinistas[0].id : '', 
-        });
-    };
 
-    const handleFormChange = (e) => {
+
+    // ----------------------------------------------------------------------
+    // RENDERIZADO
+    // ----------------------------------------------------------------------
+    if (!isAuthenticated) {
+        return <div className="p-6 text-center text-red-500">Acceso denegado. Por favor, inicie sesión.</div>;
+    }
+
+    return (
+        <div className="p-6 bg-gray-50 min-h-screen">
+            <div className="max-w-7xl mx-auto">
+                <div className="flex justify-between items-center mb-6 border-b pb-4">
+                    <h1 className="text-3xl font-bold text-gray-800 flex items-center">
+                        <UserCheck size={30} className="mr-3 text-blue-600" />
+                        Módulo de Revisión de Ingeniería
+                    </h1>
+                    <button
+                        onClick={fetchSolicitudes}
+                        className="flex items-center px-4 py-2 text-sm font-medium text-white bg-blue-500 rounded-lg shadow-md hover:bg-blue-600 transition"
+                    >
+                        <RefreshCw size={18} className="mr-2" />
+                        Recargar Solicitudes
+                    </button>
+                </div>
+
+                {/* Tabla de Solicitudes Pendientes */}
+                <div className="bg-white p-6 rounded-xl shadow-lg mb-8">
+                    <h2 className="text-xl font-semibold text-gray-700 mb-4">
+                        {totalItems} Solicitudes Pendientes de Revisión
+                    </h2>
+                    
+                    <div className="flex items-center space-x-2 mb-4">
+                        <Search size={18} className="text-gray-500" />
+                        <input
+                            type="text"
+                            placeholder="Buscar por Pieza o ID"
+                            value={searchTerm}
+                            onChange={(e) => {
+                                setSearchTerm(e.target.value);
+                                setCurrentPage(1); // Resetear página al buscar
+                            }}
+                            className="p-2 border border-gray-300 rounded-lg text-sm w-64"
+                        />
+                    </div>
+                    
+                    <div className="overflow-x-auto border rounded-xl">
+                        <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-100">
+                                <tr>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pieza (Máquina)</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solicitante</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prioridad Actual</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado Operacional</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha Creación</th>
+                                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Días Abierto</th>
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                                {loadingSolicitudes ? (
+                                    <tr>
+                                        <Td colSpan="7" className="text-center py-8 text-blue-500">Cargando solicitudes...</Td>
+                                    </tr>
+                                ) : currentItems.length > 0 ? (
+                                    currentItems.map((s) => (
+                                        <SolicitudTableRow 
+                                            key={s.id} 
+                                            solicitud={s} 
+                                            onRowClick={handleSelectSolicitud}
+                                        />
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <Td colSpan="7" className="text-center py-8 text-gray-500">
+                                            <AlertTriangle size={24} className="mx-auto mb-2 text-blue-500" />
+                                            No hay solicitudes pendientes de revisión.
+                                        </Td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    {/* ✅ CONTROLES DE PAGINACIÓN */}
+                    {totalPages > 1 && (
+                        <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 rounded-b-xl mt-4">
+                            <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                                <div>
+                                    <p className="text-sm text-gray-700">
+                                        Mostrando <span className="font-medium">{startIndex + 1}</span> a <span className="font-medium">{Math.min(endIndex, totalItems)}</span> de{' '}
+                                        <span className="font-medium">{totalItems}</span> resultados.
+                                    </p>
+                                </div>
+                                <div>
+                                    <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                                        <button
+                                            onClick={() => handlePageChange(currentPage - 1)}
+                                            disabled={currentPage === 1}
+                                            className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                                        >
+                                            <ChevronLeft size={16} />
+                                        </button>
+                                        
+                                        {getPageNumbers().map(page => (
+                                            <button
+                                                key={page}
+                                                onClick={() => handlePageChange(page)}
+                                                aria-current={currentPage === page ? 'page' : undefined}
+                                                className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold focus:z-20 ${currentPage === page 
+                                                    ? 'z-10 bg-blue-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600'
+                                                    : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50'}`}
+                                            >
+                                                {page}
+                                            </button>
+                                        ))}
+
+                                        <button
+                                            onClick={() => handlePageChange(currentPage + 1)}
+                                            disabled={currentPage === totalPages}
+                                            className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                                        >
+                                            <ChevronRight size={16} />
+                                        </button>
+                                    </nav>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+            </div>
+            
+            {/* ✅ INTEGRACIÓN DEL MODAL */}
+            <RevisionModal
+                isOpen={isModalOpen}
+                onClose={closeModal}
+                solicitud={selectedSolicitud}
+                maquinistas={maquinistas}
+                onSave={handleSubmitRevision}
+                isSaving={isSaving}
+            />
+            
+        </div>
+    );
+}
+// ----------------------------------------------------------------------
+// COMPONENTE MODAL DE REVISIÓN
+// ----------------------------------------------------------------------
+function RevisionModal({ isOpen, onClose, solicitud, maquinistas, onSave, isSaving }) {
+    
+    // Si no hay solicitud o el modal está cerrado, no renderizar
+    if (!isOpen || !solicitud) return null;
+    
+    // Estado local para los datos del formulario (se inicializa con datos al abrirse)
+    const [revisionData, setRevisionData] = useState({
+        prioridad: 'Media',
+        comentarios: '',
+        idMaquinistaAsignado: '',
+    });
+
+    useEffect(() => {
+        // Reiniciar el formulario cuando la solicitud cambie (al abrirse)
+        setRevisionData({
+            prioridad: 'Media',
+            comentarios: '',
+            idMaquinistaAsignado: '',
+        });
+    }, [solicitud]);
+
+    const handleRevisionChange = (e) => {
         const { name, value } = e.target;
         setRevisionData(prev => ({ ...prev, [name]: value }));
     };
 
-    // ----------------------------------------------------------------------
-    // --- FUNCIÓN AUXILIAR PARA LA PETICIÓN (USADA POR AMBOS: APROBAR y RECHAZAR) ---
-    // ----------------------------------------------------------------------
-    const executeRevisionRequest = async (method, url, dto) => {
-        const token = localStorage.getItem('authToken');
-        return fetch(url, {
-            method: method,
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}`,
-            },
-            body: JSON.stringify(dto),
-        });
+    // Función para manejar el rechazo
+    const handleRejectSolicitud = () => {
+        setRevisionData(prev => ({ 
+            ...prev, 
+            prioridad: 'RECHAZADA', 
+            idMaquinistaAsignado: '' // Asegurar que no se asigne maquinista
+        }));
     };
     
-    // ----------------------------------------------------------------------
-    // --- LÓGICA DE APROBACIÓN (POST con Asignación + Manejo de 409 con PUT) ---
-    // ----------------------------------------------------------------------
-    const handleSaveRevision = async (e) => {
+    const handleSubmit = (e) => {
         e.preventDefault();
-        if (!selectedSolicitud || isSaving || loadingAssignmentData) return;
-        
-        // 🚨 1. DTO BASE (RevisionCreationDto) para la actualización PUT (si ya existe)
-        const baseDto = {
-            idSolicitud: selectedSolicitud.id, 
-            idRevisor: user.id, 
-            prioridad: revisionData.prioridad,
-            comentarios: revisionData.comentarios || null,
-        };
-
-        // 🚨 2. DTO COMPLETO (RevisionApprovalDto) para la creación POST (con asignación)
-        const approvalDto = {
-            ...baseDto,
-            // Aseguramos que el ID sea numérico para el backend
-            idMaquinistaAsignado: parseInt(revisionData.idMaquinistaAsignado), 
-        };
-        
-        // 🚨 VALIDACIÓN MÍNIMA DE ASIGNACIÓN
-        if (!approvalDto.idMaquinistaAsignado) {
-             return alert("Error: Debe seleccionar un Maquinista para aprobar la solicitud.");
-        }
-
-        setIsSaving(true);
-        let response;
-        let methodToUse = 'POST'; 
-        let dtoToSend = approvalDto; // Por defecto usamos el DTO completo
-
-        try {
-            // 1. --- Intento Inicial: POST (Crear la revisión y asignación) ---
-            response = await executeRevisionRequest(methodToUse, API_REVISION_URL, dtoToSend);
-
-            // 2. --- Manejo del 409 Conflict: Fallback a PUT (Actualizar) ---
-            if (!response.ok && response.status === 409) {
-                console.log("POST falló con 409. Intentando PUT (Actualización simple)...");
-                
-                methodToUse = 'PUT';
-                const putUrl = `${API_REVISION_URL}/${selectedSolicitud.id}`; 
-                
-                // 🚨 Para PUT, usamos el DTO simple (RevisionCreationDto)
-                dtoToSend = baseDto; 
-                
-                response = await executeRevisionRequest(methodToUse, putUrl, dtoToSend);
-            }
-            
-            // --- Manejo de la Respuesta Final ---
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Fallo al ${methodToUse === 'POST' ? 'crear' : 'actualizar'} la revisión. Código: ${response.status}. Mensaje: ${errorText.substring(0, 100)}`);
-            }
-
-            alert(`Revisión de Solicitud #${selectedSolicitud.id} guardada/actualizada con éxito. Maquinista asignado.`);
-            
-            setSelectedSolicitud(null);
-            await fetchSolicitudes(); 
-            
-        } catch (error) {
-            console.error("[API Error] Revisar Solicitud:", error);
-            alert(`Error al guardar la revisión: ${error.message}`);
-        } finally {
-            setIsSaving(false);
-        }
+        onSave(revisionData);
     };
-
-    // ----------------------------------------------------------------------
-    // --- LÓGICA: RECHAZAR SOLICITUD ---
-    // ----------------------------------------------------------------------
-    const handleRejectSolicitud = async () => {
-        if (!selectedSolicitud || isSaving) return;
-
-        const confirmRejection = window.confirm(
-            `¿Estás seguro de que deseas RECHAZAR la Solicitud #${selectedSolicitud.id}? Esta acción marcará la prioridad como "RECHAZADA".`
-        );
-
-        if (!confirmRejection) return;
-
-        setIsSaving(true);
-        let methodToUse = 'PUT';
-        const putUrl = `${API_REVISION_URL}/${selectedSolicitud.id}`; 
-        
-        // 🚨 DTO SIMPLE para el rechazo (RevisionCreationDto)
-        const rejectionDto = {
-            idSolicitud: selectedSolicitud.id, 
-            idRevisor: user.id, 
-            prioridad: 'RECHAZADA', 
-            comentarios: revisionData.comentarios || "Solicitud marcada como Rechazada por Ingeniería.", 
-        };
-        
-        // 🚨 DTO COMPLETO para el POST de Rechazo (para cumplir con el DTO del backend)
-        const rejectionApprovalDto = {
-             ...rejectionDto,
-             idMaquinistaAsignado: maquinistas.length > 0 ? maquinistas[0].id : 1, // Usar un ID válido para el DTO
-             maquinaAsignada: 'N/A' 
-        };
-
-        try {
-            let response;
-            // 1. Intento 1: PUT (Si ya existe una revisión)
-            response = await executeRevisionRequest(methodToUse, putUrl, rejectionDto);
-
-            // 2. Intento 2: POST (Si es la primera vez que se toca la solicitud)
-            if (!response.ok) {
-                 methodToUse = 'POST'; 
-                 // Usamos el DTO de aprobación, pero con prioridad RECHAZADA
-                 response = await executeRevisionRequest(methodToUse, API_REVISION_URL, rejectionApprovalDto);
-            }
-            
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Fallo al rechazar la solicitud. Código: ${response.status}.`);
-            }
-
-            alert(`Solicitud #${selectedSolicitud.id} ha sido marcada como RECHAZADA.`);
-            
-            setSelectedSolicitud(null);
-            await fetchSolicitudes(); 
-            
-        } catch (error) {
-            console.error("[API Error] Rechazar Solicitud:", error);
-            alert(`Error al rechazar la solicitud: ${error.message}`);
-        } finally {
-            setIsSaving(false);
-        }
-    };
-    // ----------------------------------------------------------------------
-
-
-    // --- Card de Solicitud en lista ---
-    const RevisionRow = ({ solicitud }) => (
-        <tr 
-            onClick={() => handleSelectSolicitud(solicitud)}
-            className={`cursor-pointer border-b border-gray-100 transition duration-150 ${selectedSolicitud?.id === solicitud.id ? 'bg-indigo-50 border-indigo-400 shadow-inner' : 'hover:bg-gray-50'}`}
-        >
-            <Td className="font-semibold text-indigo-600">{solicitud.id}</Td>
-            <Td>{solicitud.piezaNombre} {solicitud.maquina ? `(${solicitud.maquina})` : ''}</Td> 
-            <Td className="text-gray-500">{solicitud.solicitanteNombre}</Td> 
-            <Td>
-                <span className={`px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border ${getPriorityClasses(solicitud.prioridadActual || 'Pendiente')}`}>
-                    {solicitud.prioridadActual || 'Pendiente'} 
-                </span>
-            </Td>
-            <Td className={`font-medium ${(solicitud.estadoOperacional === 'En Revisión' || solicitud.estadoOperacional === 'Pendiente') ? 'text-red-600' : 'text-green-600'}`}>
-                {solicitud.estadoOperacional}
-            </Td>
-            <Td className="text-gray-500">{new Date(solicitud.fechaYHora).toLocaleDateString()}</Td>
-        </tr>
-    );
 
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Columna de Lista de Pendientes (2/3) */}
-            <div className="lg:col-span-2 bg-white p-6 rounded-xl shadow-2xl border-t-4 border-indigo-600">
-                {/* ... (encabezados de lista) ... */}
-                <div className="flex justify-between items-center mb-4 border-b pb-2">
-                    <h2 className="text-2xl font-bold text-gray-800 flex items-center">
-                        <Briefcase size={24} className="mr-2 text-indigo-600" />
-                        Bandeja de Revisión
-                    </h2>
-                    {/* Botón de Recarga */}
-                    <button
-                        onClick={fetchSolicitudes}
-                        disabled={loadingSolicitudes || isSaving || loadingAssignmentData}
-                        className={`p-2 rounded-full transition duration-150 ${loadingSolicitudes || loadingAssignmentData ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'text-indigo-600 hover:bg-indigo-100'}`}
-                        title="Recargar Solicitudes"
-                    >
-                        <RefreshCw size={18} className={loadingSolicitudes ? 'animate-spin' : ''} />
-                    </button>
-                </div>
-                
-                <p className="text-sm text-gray-600 mb-4">
-                    Mostrando solo solicitudes con prioridad **"En Revisión"** o **"Pendiente"** que requieren tu validación y asignación de prioridad.
-                </p>
-
-                {/* Info de cantidad */}
-                <p className="text-base font-medium text-gray-700 mb-4">
-                    <Clock size={16} className="inline mr-1 text-indigo-500" />
-                    Solicitudes pendientes: **{filteredSolicitudes.length}**
-                </p>
-
-                {/* Tabla de Pendientes */}
-                <div className="overflow-x-auto border rounded-xl">
-                    <table className="min-w-full divide-y divide-gray-200">
-                        {/* ... (thead) ... */}
-                        <thead className="bg-gray-50">
-                            <tr>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pieza (Máquina)</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Solicitante</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prioridad</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado Operacional</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha de Creación</th>
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            {loadingSolicitudes ? (
-                                <tr>
-                                    <Td colSpan="6" className="text-center py-8 text-indigo-500">Cargando solicitudes...</Td>
-                                </tr>
-                            ) : filteredSolicitudes.length > 0 ? (
-                                // 🚨 CAMBIO: Mapeamos currentItems en lugar de filteredSolicitudes
-                                currentItems.map((s) => <RevisionRow key={s.id} solicitud={s} />)
-                            ) : (
-                                <tr>
-                                    <Td colSpan="6" className="text-center py-8 text-gray-500">
-                                        <Clock size={24} className="mx-auto mb-3 text-green-500"/>
-                                        ¡No hay solicitudes pendientes de revisión!
-                                    </Td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-
-                {/* 💡 CONTROLES DE PAGINACIÓN */}
-                {totalPages > 1 && (
-                    <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 rounded-b-xl mt-4">
-                        <div className="flex flex-1 justify-between sm:hidden">
-                            <button
-                                onClick={() => handlePageChange(currentPage - 1)}
-                                disabled={currentPage === 1}
-                                className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                            >
-                                Anterior
-                            </button>
-                            <button
-                                onClick={() => handlePageChange(currentPage + 1)}
-                                disabled={currentPage === totalPages}
-                                className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
-                            >
-                                Siguiente
-                            </button>
-                        </div>
-                        <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-                            <div>
-                                <p className="text-sm text-gray-700">
-                                    Mostrando <span className="font-medium">{startIndex + 1}</span> a <span className="font-medium">{Math.min(endIndex, totalItems)}</span> de <span className="font-medium">{totalItems}</span> resultados
-                                </p>
+        <div 
+            // Fondo con efecto blur (como en Dashboard)
+            className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-gray-900/60 p-4 transition-opacity" 
+            aria-labelledby="modal-title"
+            role="dialog"
+            aria-modal="true"
+        >
+            <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+                <div 
+                    className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full"
+                >
+                    {/* 🚨 CORRECCIÓN: Se añade la clase 'relative' a este div para anclar el botón de cerrar 'X' */}
+                    <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4 relative">
+                        <div className="sm:flex sm:items-start">
+                            <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 sm:mx-0 sm:h-10 sm:w-10">
+                                <FileText className="h-6 w-6 text-blue-600" />
                             </div>
-                            <div>
-                                <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-                                    <button
-                                        onClick={() => handlePageChange(currentPage - 1)}
-                                        disabled={currentPage === 1}
-                                        className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
-                                    >
-                                        <ChevronLeft size={16} />
-                                    </button>
-                                    
-                                    {getPageNumbers().map(page => (
-                                        <button
-                                            key={page}
-                                            onClick={() => handlePageChange(page)}
-                                            aria-current={currentPage === page ? 'page' : undefined}
-                                            className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold focus:z-20 ${currentPage === page 
-                                                ? 'z-10 bg-indigo-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600'
-                                                : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50'}`}
-                                        >
-                                            {page}
-                                        </button>
-                                    ))}
-
-                                    <button
-                                        onClick={() => handlePageChange(currentPage + 1)}
-                                        disabled={currentPage === totalPages}
-                                        className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
-                                    >
-                                        <ChevronRight size={16} />
-                                    </button>
-                                </nav>
+                            <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                                <h3 className="text-lg leading-6 font-medium text-gray-900" id="modal-title">
+                                    Revisión de Solicitud #{solicitud.id}
+                                </h3>
+                                <p className="text-sm text-gray-500">Asigne prioridad y maquinista para iniciar el trabajo.</p>
                             </div>
                         </div>
-                    </div>
-                )}
-            </div>
-
-            {/* Columna de Formulario de Revisión (1/3) */}
-            <div className="lg:col-span-1 bg-white p-6 rounded-xl shadow-2xl border-t-4 border-blue-600 h-fit sticky top-0">
-                <h3 className="text-xl font-bold text-blue-800 mb-4 border-b pb-2 flex items-center">
-                    <Zap size={20} className="mr-2" />
-                    Asignación de Prioridad y Trabajo
-                </h3>
-                
-                {loadingAssignmentData ? (
-                    <div className="text-center py-10 text-gray-500">
-                        <RefreshCw size={32} className="mx-auto mb-3 text-blue-500 animate-spin" />
-                        <p>Cargando datos de asignación (Maquinistas/Máquinas)...</p>
-                    </div>
-                ) : !selectedSolicitud ? (
-                    <div className="text-center py-10 text-gray-500">
-                        <AlertTriangle size={32} className="mx-auto mb-3 text-blue-500" />
-                        <p>Selecciona una solicitud de la lista para asignarle prioridad y finalizar la revisión.</p>
-                    </div>
-                ) : (
-                    <form onSubmit={handleSaveRevision} className="space-y-5">
                         
-                        {/* ----------------------------------------------------------- */}
-                        {/* SECCIÓN: DETALLES AMPLIADOS DE LA SOLICITUD */}
-                        {/* ----------------------------------------------------------- */}
-                        <div className="space-y-4">
-                            <p className="font-semibold text-xl text-indigo-700 border-b pb-2">Solicitud ID: {selectedSolicitud.id}</p>
-                            
-                            <div className="grid grid-cols-2 gap-4 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                                <DetailItem label="Solicitante" value={selectedSolicitud.solicitanteNombre} /> 
+                        {/* ✅ BOTÓN DE CERRAR MODAL SIN ACCIÓN (Ahora visible) */}
+                        <button
+                            onClick={onClose}
+                            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 transition"
+                            title="Cerrar Modal"
+                        >
+                            <X size={20} />
+                        </button>
+                        
+                        {/* 1. Detalles de la Solicitud Seleccionada */}
+                        <div className="mt-5 border border-gray-200 p-4 rounded-lg mb-6 bg-gray-50">
+                            <h3 className="text-lg font-semibold text-gray-700 mb-3 border-b pb-2">Detalles de la Solicitud</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-3">
+                                
                                 <DetailItem 
-                                    label="Pieza (Máquina)" 
-                                    value={`${selectedSolicitud.piezaNombre}${selectedSolicitud.maquina ? ` (${selectedSolicitud.maquina})` : ''}`} 
-                                /> 
-                                <DetailItem label="Turno" value={selectedSolicitud.turno} />
-                                <DetailItem label="Tipo Trabajo" value={selectedSolicitud.tipo} /> 
-                            </div>
+                                    icon={Briefcase} 
+                                    label="Pieza" 
+                                    // ✅ Estructura Pieza (Máquina)
+                                    value={`${solicitud.piezaNombre} (${solicitud.maquina || 'N/A'})`} 
+                                />
 
-                            <div className="border-t pt-3">
-                                <p className="font-medium text-gray-700 mb-1">Detalles de la Solicitud:</p>
-                                <p className="text-gray-600 italic text-sm border-b pb-3">{selectedSolicitud.detalles}</p>
+                                <DetailItem icon={Clock} label="Turno" value={solicitud.turno} />
+                                <DetailItem icon={Zap} label="Tipo de Trabajo" value={solicitud.tipo} />
+                                <DetailItem icon={AlertTriangle} label="Prioridad Actual" value={solicitud.prioridadActual || 'En Revisión'} />
                             </div>
-
-                            {selectedSolicitud.dibujo && (
-                                <div className="pb-3">
-                                    <p className="font-medium text-gray-700 mb-1">Documentación / Dibujo:</p>
-                                    <a 
-                                        href={selectedSolicitud.dibujo} 
-                                        target="_blank" 
-                                        rel="noopener noreferrer"
-                                        className="text-blue-600 hover:text-blue-800 text-sm font-bold truncate block"
+                            <div className="p-2 bg-white rounded-lg border">
+                                <p className="text-xs font-medium text-gray-500 mb-1">Detalles/Descripción:</p>
+                                <p className="text-sm text-gray-800 italic">{solicitud.detalles}</p>
+                            </div>
+                        </div>
+                        
+                        {/* 2. Formulario de Revisión */}
+                        <form onSubmit={handleSubmit}>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                
+                                {/* Prioridad */}
+                                <div>
+                                    <label htmlFor="prioridad" className="block text-sm font-medium text-gray-700 mb-1">
+                                        Prioridad de Trabajo
+                                    </label>
+                                    <select
+                                        id="prioridad"
+                                        name="prioridad"
+                                        value={revisionData.prioridad}
+                                        onChange={handleRevisionChange}
+                                        required
+                                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
                                     >
-                                        🔗 Abrir Enlace al Dibujo
-                                    </a>
+                                        <option value="Baja">Baja</option>
+                                        <option value="Media">Media</option>
+                                        <option value="Alta">Alta</option>
+                                        <option value="Urgente">Urgente</option>
+                                        <option value="RECHAZADA">RECHAZADA</option>
+                                    </select>
                                 </div>
-                            )}
-                        </div>
-                        {/* ----------------------------------------------------------- */}
-                        
-                        {/* Asignar Prioridad */}
-                        <div>
-                            <label htmlFor="prioridad" className="block text-sm font-medium text-gray-700 mb-1">Prioridad *</label>
-                            <select
-                                id="prioridad"
-                                name="prioridad"
-                                value={revisionData.prioridad}
-                                onChange={handleFormChange}
-                                required
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500 appearance-none"
-                            >
-                                <option value="Baja">Baja</option>
-                                <option value="Media">Media</option>
-                                <option value="Alta">Alta</option>
-                                <option value="Urgente">Urgente</option>
-                            </select>
-                        </div>
-                        
-                        {/* ----------------------------------------------------------- */}
-                        {/* 💡 NUEVOS CAMPOS: ASIGNACIÓN DE MAQUINISTA Y MÁQUINA */}
-                        {/* ----------------------------------------------------------- */}
-                        <div className="grid grid-cols-2 gap-4">
-                            {/* Asignar Maquinista */}
-                            <div>
-                                <label htmlFor="idMaquinistaAsignado" className="block text-sm font-medium text-gray-700 mb-1">
-                                    Maquinista Asignado *
-                                </label>
-                                <select
-                                    id="idMaquinistaAsignado"
-                                    name="idMaquinistaAsignado"
-                                    value={revisionData.idMaquinistaAsignado}
-                                    onChange={handleFormChange}
-                                    required
-                                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500 appearance-none"
-                                    disabled={maquinistas.length === 0}
-                                >
-                                    {maquinistas.length === 0 ? (
-                                        <option value="">Cargando Maquinistas...</option>
-                                    ) : (
-                                        maquinistas.map(m => (
-                                            // Asumimos que los maquinistas tienen un campo 'id' y 'nombre'
-                                            <option key={m.id} value={m.id}>
-                                                {m.nombre} (ID: {m.id})
-                                            </option>
-                                        ))
-                                    )}
-                                </select>
+                                
+                                {/* Asignación de Maquinista (solo si no es rechazada) */}
+                                {revisionData.prioridad !== 'RECHAZADA' && (
+                                    <div>
+                                        <label htmlFor="idMaquinistaAsignado" className="block text-sm font-medium text-gray-700 mb-1">
+                                            Asignar Maquinista Inicial
+                                        </label>
+                                        <select
+                                            id="idMaquinistaAsignado"
+                                            name="idMaquinistaAsignado"
+                                            value={revisionData.idMaquinistaAsignado}
+                                            onChange={handleRevisionChange}
+                                            required={revisionData.prioridad !== 'RECHAZADA'}
+                                            className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                                        >
+                                            <option value="">Seleccione un Maquinista</option>
+                                            {maquinistas.map(m => (
+                                                <option key={m.id} value={m.id}>{m.nombre}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+
+                                {/* Comentarios */}
+                                <div className="md:col-span-2">
+                                    <label htmlFor="comentarios" className="block text-sm font-medium text-gray-700 mb-1">
+                                        Comentarios y Notas de Ingeniería (Obligatorio)
+                                    </label>
+                                    <textarea
+                                        id="comentarios"
+                                        name="comentarios"
+                                        rows="3"
+                                        value={revisionData.comentarios}
+                                        onChange={handleRevisionChange}
+                                        required
+                                        className="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                                    />
+                                </div>
                             </div>
 
-                            {/* Asignar Máquina Inicial */}
-                            
-                        </div>
-                        {/* ----------------------------------------------------------- */}
-                        
-                         {/* Comentarios de Ingeniería */}
-                        <div>
-                            <label htmlFor="comentarios" className="block text-sm font-medium text-gray-700 mb-1">Comentarios de Ingeniería (Opcional)</label>
-                            <textarea
-                                id="comentarios"
-                                name="comentarios"
-                                value={revisionData.comentarios}
-                                onChange={handleFormChange}
-                                rows="3"
-                                placeholder="Instrucciones para el operador, notas de material o motivo de rechazo..."
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-                            ></textarea>
-                        </div>
+                            {/* Botones de Acción */}
+                            <div className="flex justify-between pt-5 mt-4 border-t">
+                                {/* Botón de Rechazar Solicitud */}
+                                {revisionData.prioridad !== 'RECHAZADA' && (
+                                    <button
+                                        type="button" 
+                                        onClick={handleRejectSolicitud}
+                                        disabled={isSaving}
+                                        className={`flex items-center px-4 py-2 text-sm font-medium rounded-lg shadow-md transition ${isSaving ? 'bg-gray-400 text-gray-700 cursor-not-allowed' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}
+                                    >
+                                        <X size={18} className="mr-2" />
+                                        Marcar como Rechazada
+                                    </button>
+                                )}
 
-                        <div className="flex justify-between pt-3">
-                            {/* Botón de Rechazar Solicitud */}
-                            <button
-                                type="button" 
-                                onClick={handleRejectSolicitud}
-                                disabled={isSaving}
-                                className={`flex items-center px-4 py-2 text-sm font-medium rounded-lg shadow-md transition ${isSaving ? 'bg-gray-400 text-gray-700 cursor-not-allowed' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}
-                            >
-                                <X size={18} className="mr-2" />
-                                Rechazar Solicitud
-                            </button>
-
-                            {/* Botón de Guardar Revisión (Aprobar) - type="submit" */}
-                            <button
-                                type="submit"
-                                disabled={isSaving || !revisionData.idMaquinistaAsignado }
-                                className={`flex items-center px-4 py-2 text-sm font-medium text-white rounded-lg shadow-md transition ${isSaving || !revisionData.idMaquinistaAsignado ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
-                            >
-                                <Save size={18} className="mr-2" />
-                                {isSaving ? 'Guardando...' : 'Aprobar y Asignar'}
-                            </button>
-                        </div>
-                    </form>
-                )}
+                                {/* Botón de Guardar Revisión (Aprobar) - type="submit" */}
+                                <button
+                                    type="submit"
+                                    // Deshabilita si está guardando O si no es RECHAZADA Y falta el Maquinista
+                                    disabled={isSaving || (revisionData.prioridad !== 'RECHAZADA' && !revisionData.idMaquinistaAsignado) }
+                                    className={`flex items-center px-4 py-2 text-sm font-medium text-white rounded-lg shadow-md transition ${isSaving || (revisionData.prioridad !== 'RECHAZADA' && !revisionData.idMaquinistaAsignado) ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+                                >
+                                    <Save size={18} className="mr-2" />
+                                    {isSaving ? 'Guardando...' : (revisionData.prioridad === 'RECHAZADA' ? 'Confirmar Rechazo' : 'Aprobar y Asignar')}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
             </div>
         </div>
     );
