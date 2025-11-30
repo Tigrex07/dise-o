@@ -1,8 +1,10 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { 
     Search, Filter, ChevronLeft, ChevronRight, Component as ComponentIcon, AlertTriangle, 
-    // NUEVOS ICONOS PARA EL MODAL
-    X, FileText, Settings, Clock, Clipboard, Zap, UserCheck, MapPin
+    // ICONOS PARA EL MODAL
+    X, FileText, Settings, Clock, Clipboard, Zap, UserCheck, MapPin, 
+    // NUEVO ICONO PARA TIMELINE
+    Activity 
 } from "lucide-react"; 
 
 import { useAuth } from "../context/AuthContext";
@@ -64,6 +66,72 @@ const getPriorityClasses = (priority) => {
 };
 
 // ----------------------------------------------------------------------
+// COMPONENTE NUEVO: HISTORIAL DE ESTADO DE TRABAJO (TIMELINE)
+// ----------------------------------------------------------------------
+
+function EstadoTrabajoHistory({ history }) {
+    if (!history || history.length === 0) {
+        return <p className="text-sm text-gray-500 italic p-3">No hay registros de Estado de Trabajo aún.</p>;
+    }
+
+    return (
+        <ol className="relative border-l border-gray-200 ml-4">                  
+            {history.map((step, index) => {
+                const isLatest = index === 0;
+                
+                // Asume que el backend proporciona 'maquinistaNombre'
+                const maquinista = step.maquinistaNombre || '—'; 
+                const inicio = new Date(step.fechaYHoraDeInicio).toLocaleString();
+                const fin = step.fechaYHoraDeFin ? new Date(step.fechaYHoraDeFin).toLocaleString() : 'En Proceso...';
+                
+                return (
+                    <li key={index} className="mb-6 ml-6">
+                        <span className={`absolute flex items-center justify-center w-6 h-6 rounded-full -left-3 ring-8 ring-white ${isLatest ? 'bg-indigo-600' : 'bg-gray-400'}`}>
+                            <Activity size={12} className="text-white"/>
+                        </span>
+                        
+                        <div className={`p-4 rounded-lg border shadow-md ${isLatest ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-gray-200'}`}>
+                            <time className="mb-1 text-xs font-normal leading-none text-gray-400">
+                                {isLatest ? `Última Actualización: ${inicio}` : `Iniciado: ${inicio}`}
+                            </time>
+                            
+                            <h3 className={`text-md font-semibold ${isLatest ? 'text-indigo-800' : 'text-gray-900'}`}>
+                                {step.descripcionOperacion}
+                            </h3>
+                            
+                            <div className="mt-2 grid grid-cols-2 gap-x-4 text-sm text-gray-700">
+                                <p className="flex items-center">
+                                    <UserCheck size={14} className="mr-1 text-indigo-500" /> 
+                                    <span className="font-medium">Maquinista:</span> {maquinista}
+                                </p>
+                                <p className="flex items-center">
+                                    <Settings size={14} className="mr-1 text-indigo-500" /> 
+                                    <span className="font-medium">Máquina:</span> {step.maquinaAsignada || 'N/A'}
+                                </p>
+                                
+                                <p className="col-span-1">
+                                    <span className="font-medium">Finalizado:</span> {fin}
+                                </p>
+                                <p className="col-span-1">
+                                    <span className="font-medium">Tiempo Máquina:</span> {step.tiempoMaquina || '0.00'} hrs
+                                </p>
+                            </div>
+                            
+                            {step.observaciones && (
+                                <p className="mt-2 text-xs italic text-gray-500">
+                                    Obs: {step.observaciones}
+                                </p>
+                            )}
+                        </div>
+                    </li>
+                );
+            })}
+        </ol>
+    );
+}
+
+
+// ----------------------------------------------------------------------
 // COMPONENTE: MODAL DE DETALLES DE SOLICITUD
 // ----------------------------------------------------------------------
 
@@ -105,14 +173,16 @@ function SolicitudDetailModal({ solicitud, detailData, loadingDetails, onClose }
     const areaNombre = detailData.areaData?.nombreArea || detailData.pieceData?.area?.nombreArea || solicitud.areaNombre;
     const maquinaNombre = detailData.pieceData?.maquina || solicitud.maquina; 
     
+    // 🚨 PROPIEDADES ACTUALIZADAS
     const revision = detailData.revision;
-    const estadoTrabajo = detailData.estadoTrabajo;
+    const estadoTrabajoLatest = detailData.estadoTrabajoLatest; // Último estado
+    const estadoTrabajoHistory = detailData.estadoTrabajoHistory; // Historial completo
 
 
     return (
         // Fondo con blur y color gris oscuro semitransparente
         <div className="fixed inset-0 z-50 overflow-y-auto bg-gray-800/70 backdrop-blur-sm flex items-start justify-center p-4 sm:p-6 lg:p-8">
-            <div className="relative w-full max-w-4xl mt-10 bg-white rounded-xl shadow-2xl transform transition-all">
+            <div className="relative w-full max-w-4xl mt-10 mb-10 bg-white rounded-xl shadow-2xl transform transition-all">
                 
                 {/* Encabezado del Modal */}
                 <div className="p-6 border-b flex justify-between items-center sticky top-0 bg-white rounded-t-xl z-10">
@@ -194,29 +264,38 @@ function SolicitudDetailModal({ solicitud, detailData, loadingDetails, onClose }
                             )}
                         </div>
                         
-                        {/* 3. SECCIÓN: ESTADO DE TRABAJO Y ASIGNACIÓN */}
+                        {/* 3. SECCIÓN: ÚLTIMO ESTADO DE TRABAJO Y ASIGNACIÓN */}
                         <div className="border border-green-200 rounded-xl p-4 bg-green-50/50">
                             <h3 className="text-lg font-bold text-green-700 mb-4 flex items-center">
                                 <Clipboard size={18} className="mr-2" />
-                                Estado y Asignación de Taller
+                                Último Estado y Asignación de Taller
                             </h3>
-                            {estadoTrabajo ? (
+                            {estadoTrabajoLatest ? (
                                 <div className="space-y-3">
                                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                        {/* 🚨 PROPIEDAD CORREGIDA SEGÚN EL ÚLTIMO JSON (maquinistaAsignado) */}
-                                        <DetailItem icon={UserCheck} label="Maquinista Asignado" value={estadoTrabajo.maquinistaAsignado || 'N/A'} /> 
-                                        <DetailItem icon={Settings} label="Máquina Asignada" value={estadoTrabajo.maquinaAsignada} />
-                                        <DetailItem icon={Clipboard} label="Estado Taller" value={estadoTrabajo.estadoActual} />
-                                        <DetailItem icon={Clock} label="Fecha Última Actualización" value={new Date(estadoTrabajo.fechaHoraActualizacion).toLocaleString()} />
+                                        {/* 🚨 PROPIEDAD CORREGIDA SEGÚN EL ÚLTIMO JSON (maquinistaAsignadoNombre) */}
+                                        <DetailItem icon={UserCheck} label="Maquinista Asignado" value={estadoTrabajoLatest.maquinistaNombre || 'N/A'} /> 
+                                        <DetailItem icon={Settings} label="Máquina Asignada" value={estadoTrabajoLatest.maquinaAsignada} />
+                                        <DetailItem icon={Clipboard} label="Estado Actual" value={estadoTrabajoLatest.descripcionOperacion} />
+                                        <DetailItem icon={Clock} label="Fecha de Inicio" value={new Date(estadoTrabajoLatest.fechaYHoraDeInicio).toLocaleString()} />
                                     </div>
                                     <div className="p-3 bg-white rounded-lg border">
-                                        <p className="text-xs font-medium text-gray-500 mb-1">Comentarios/Notas del Taller:</p>
-                                        <p className="text-sm text-gray-800 italic">{estadoTrabajo.notasOperacionales || 'Sin notas del maquinista.'}</p>
+                                        <p className="text-xs font-medium text-gray-500 mb-1">Comentarios/Notas del Maquinista:</p>
+                                        <p className="text-sm text-gray-800 italic">{estadoTrabajoLatest.observaciones || 'Sin notas del maquinista.'}</p>
                                     </div>
                                 </div>
                             ) : (
                                 <p className="text-sm text-green-600 italic">Aún no se ha iniciado el seguimiento del estado de trabajo.</p>
                             )}
+                        </div>
+                        
+                        {/* 4. SECCIÓN: HISTORIAL DE TRABAJO (TIMELINE) */}
+                        <div className="border border-gray-200 rounded-xl p-4 bg-gray-50/50">
+                            <h3 className="text-lg font-bold text-gray-700 mb-4 flex items-center">
+                                <Activity size={18} className="mr-2" />
+                                Historial de Taller (Timeline)
+                            </h3>
+                            <EstadoTrabajoHistory history={estadoTrabajoHistory} />
                         </div>
                     </div>
                 )}
@@ -300,11 +379,12 @@ export default function Dashboard() {
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 25; 
 
-    // 🚨 ESTADOS PARA EL MODAL Y LOS DETALLES
+    // 🚨 ESTADOS PARA EL MODAL Y LOS DETALLES (ACTUALIZADOS)
     const [selectedSolicitud, setSelectedSolicitud] = useState(null); 
     const [detailData, setDetailData] = useState({ 
         revision: null, 
-        estadoTrabajo: null,
+        estadoTrabajoLatest: null,      // Último estado (para Sección 3)
+        estadoTrabajoHistory: [],       // Historial completo (para Sección 4)
         pieceData: null,
         areaData: null
     });
@@ -324,7 +404,7 @@ export default function Dashboard() {
     // FUNCIÓN PARA CERRAR EL MODAL
     const closeModal = () => {
         setSelectedSolicitud(null);
-        setDetailData({ revision: null, estadoTrabajo: null, pieceData: null, areaData: null });
+        setDetailData({ revision: null, estadoTrabajoLatest: null, estadoTrabajoHistory: [], pieceData: null, areaData: null });
     };
     
     // 🚨 FUNCIÓN PARA OBTENER LOS DETALLES COMPLEMENTARIOS (Lógica de Áreas y Piezas)
@@ -341,13 +421,23 @@ export default function Dashboard() {
 
         try {
             // 1. Fetch de Revisión y EstadoTrabajo
-            const [revisionRes, estadoTrabajoRes] = await Promise.all([
+            // Asumo /EstadoTrabajo/History/{id} es el endpoint para el historial
+            const [revisionRes, estadoTrabajoLatestRes, estadoTrabajoHistoryRes] = await Promise.all([
                 fetch(`${API_REVISION_BASE_URL}/${id}`, { headers }),
-                fetch(`${API_ESTADO_TRABAJO_BASE_URL}/${id}`, { headers }),
+                fetch(`${API_ESTADO_TRABAJO_BASE_URL}/${id}`, { headers }), // Último estado (para Sección 3)
+                fetch(`${API_ESTADO_TRABAJO_BASE_URL}/History/${id}`, { headers }), // Historial completo (para Sección 4)
             ]);
 
             const revision = revisionRes.ok ? await revisionRes.json() : null;
-            const estadoTrabajo = estadoTrabajoRes.ok ? await estadoTrabajoRes.json() : null;
+            const estadoTrabajoLatest = estadoTrabajoLatestRes.ok ? await estadoTrabajoLatestRes.json() : null;
+
+            let estadoTrabajoHistory = [];
+            if (estadoTrabajoHistoryRes.ok) {
+                 estadoTrabajoHistory = await estadoTrabajoHistoryRes.json();
+                 // Ordenar por fecha de inicio descendente para el timeline
+                 estadoTrabajoHistory.sort((a, b) => new Date(b.fechaYHoraDeInicio) - new Date(a.fechaYHoraDeInicio));
+            }
+
 
             // 2. Fetch de Detalles de Pieza
             if (idPieza) {
@@ -365,12 +455,13 @@ export default function Dashboard() {
                 }
             }
 
-            setDetailData({ revision, estadoTrabajo, pieceData, areaData });
+            // 🚨 ACTUALIZACIÓN DE ESTADO CON NUEVOS NOMBRES
+            setDetailData({ revision, estadoTrabajoLatest, estadoTrabajoHistory, pieceData, areaData });
 
         } catch (error) {
             console.error("Error fetching detail data:", error);
             // Si hay un error, aún mostramos la solicitud principal
-            setDetailData({ revision: null, estadoTrabajo: null, pieceData: null, areaData: null });
+            setDetailData({ revision: null, estadoTrabajoLatest: null, estadoTrabajoHistory: [], pieceData: null, areaData: null });
         } finally {
             setLoadingDetails(false);
         }

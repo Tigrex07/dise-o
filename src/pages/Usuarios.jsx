@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Users, PlusCircle, Edit, UserCheck, XCircle,
   Loader2, RefreshCw, AlertTriangle, Search, X,
-  AlertCircle, User
+  AlertCircle, User, ChevronLeft, ChevronRight // 🚨 Se agregaron los iconos de paginación
 } from 'lucide-react';
 import API_BASE_URL from '../components/apiConfig';
 
@@ -345,6 +345,10 @@ export default function Usuarios() {
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [userToConfirm, setUserToConfirm] = useState(null);
 
+  // 🚨 ESTADOS DE PAGINACIÓN
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10; // Mostrar 10 usuarios por página
+
   // API: listar
   const fetchUsers = useCallback(async () => {
     setIsLoading(true);
@@ -442,7 +446,7 @@ const handleSaveUser = useCallback(async (user, isEditing) => {
 
   // Filtro combinado
   const filteredUsers = useMemo(() => {
-    let result = users;
+    let result = users.slice(); // Usamos slice para evitar mutaciones directas y facilitar el orden
 
     // Filtro de búsqueda
     if (searchTerm) {
@@ -462,10 +466,47 @@ const handleSaveUser = useCallback(async (user, isEditing) => {
       result = result.filter(u => !u.activo);
     }
 
+    // Opcional: Ordenar por ID para consistencia (descendente)
+    result.sort((a, b) => b.id - a.id);
+
     return result;
   }, [users, searchTerm, statusFilter]);
 
-  // Handlers de modales
+  // ----------------------------------------------------------------------
+  // 🚨 LÓGICA DE PAGINACIÓN
+  // ----------------------------------------------------------------------
+  const totalItems = filteredUsers.length;
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+
+  const currentItems = useMemo(() => {
+    return filteredUsers.slice(startIndex, endIndex);
+  }, [filteredUsers, startIndex, endIndex]);
+
+  const handlePageChange = (page) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+    }
+  };
+
+  const getPageNumbers = () => {
+    const maxPagesToShow = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+    let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+
+    if (endPage - startPage + 1 < maxPagesToShow) {
+      startPage = Math.max(1, endPage - maxPagesToShow + 1);
+    }
+
+    const pages = [];
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+    return pages;
+  };
+  
+  // Handlers de modales (Sin cambios)
   const handleOpenModal = () => {
     setEditingUser(null);
     setIsModalOpen(true);
@@ -520,7 +561,10 @@ const handleSaveUser = useCallback(async (user, isEditing) => {
             type="text"
             placeholder="Buscar por nombre, email, rol o área..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1); // 🚨 Resetear página
+            }}
             className="w-full border border-gray-300 rounded-xl py-2 pl-10 pr-4 focus:ring-indigo-500 focus:border-indigo-500 transition"
           />
         </div>
@@ -531,7 +575,10 @@ const handleSaveUser = useCallback(async (user, isEditing) => {
         <label className="text-sm font-medium text-gray-700">Filtrar por estado:</label>
         <select
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setCurrentPage(1); // 🚨 Resetear página
+          }}
           className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
         >
           <option value="todos">Todos</option>
@@ -570,7 +617,7 @@ const handleSaveUser = useCallback(async (user, isEditing) => {
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {filteredUsers.length > 0 ? (
-              filteredUsers.map(user => (
+              currentItems.map(user => ( // 🚨 Usamos currentItems para la paginación
                 <UserTableRow
                   key={user.id}
                   user={user}
@@ -591,6 +638,68 @@ const handleSaveUser = useCallback(async (user, isEditing) => {
           </tbody>
         </table>
       </div>
+
+      {/* 🚨 CONTROLES DE PAGINACIÓN */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 rounded-b-xl mt-4 shadow-md border">
+          <div className="flex flex-1 justify-between sm:hidden">
+            <button 
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+                <ChevronLeft size={16} className="mr-1" /> Anterior
+            </button>
+            <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+                Siguiente <ChevronRight size={16} className="ml-1" />
+            </button>
+          </div>
+          <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm text-gray-700">
+                  Mostrando <span className="font-medium">{startIndex + 1}</span> a <span className="font-medium">{Math.min(endIndex, totalItems)}</span> de{' '}
+                  <span className="font-medium">{totalItems}</span> resultados.
+              </p>
+            </div>
+            <div>
+              <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
+                <button
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                >
+                    <ChevronLeft size={16} />
+                </button>
+                
+                {getPageNumbers().map(page => (
+                    <button
+                        key={page}
+                        onClick={() => handlePageChange(page)}
+                        aria-current={currentPage === page ? 'page' : undefined}
+                        className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold focus:z-20 ${currentPage === page 
+                            ? 'z-10 bg-indigo-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600'
+                            : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50'}`}
+                    >
+                        {page}
+                    </button>
+                ))}
+
+                <button
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                >
+                    <ChevronRight size={16} />
+                </button>
+              </nav>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Footer */}
       <footer className="mt-6 text-sm text-gray-600">
