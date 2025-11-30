@@ -5,6 +5,8 @@ import {
   AlertCircle, User, ChevronLeft, ChevronRight // 🚨 Se agregaron los iconos de paginación
 } from 'lucide-react';
 import API_BASE_URL from '../components/apiConfig';
+import { Trash } from 'lucide-react';
+
 
 const API_USUARIOS_URL = `${API_BASE_URL}/usuarios`;
 
@@ -282,7 +284,7 @@ function UserFormModal({ isOpen, userToEdit, onClose, onSave }) {
     </div>
   );
 }
-function UserTableRow({ user, handleEdit, handleToggleActive }) {
+function UserTableRow({ user, handleEdit, handleToggleActive, handleDelete }) {
   const statusClasses = user.activo
     ? 'bg-green-100 text-green-700 border-green-200'
     : 'bg-red-100 text-red-700 border-red-200';
@@ -325,6 +327,15 @@ function UserTableRow({ user, handleEdit, handleToggleActive }) {
               : 'text-green-600 hover:text-green-800 hover:bg-green-100'} p-1 rounded transition`}
           >
             {user.activo ? <XCircle size={18} /> : <UserCheck size={18} />}
+          </button>
+
+          {/* 🚨 Eliminar */}
+          <button
+            title="Eliminar Usuario"
+            onClick={() => handleDelete(user)}
+            className="text-gray-500 hover:text-red-600 p-1 rounded hover:bg-red-100 transition"
+          >
+            <Trash size={18} />
           </button>
         </div>
       </Td>
@@ -443,7 +454,20 @@ const handleSaveUser = useCallback(async (user, isEditing) => {
       setIsLoading(false);
     }
   }, [fetchUsers]);
+  // Eliminar usuario
+  const handleDeleteUser = async (user) => {
+    if (!window.confirm(`¿Seguro que quieres eliminar al usuario ${user.nombre}?`)) return;
 
+    try {
+      const response = await fetch(`${API_USUARIOS_URL}/${user.id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Error al eliminar usuario.');
+      await fetchUsers(); // recargar lista
+    } catch (err) {
+      setError(err.message);
+    }
+  };
   // Filtro combinado
   const filteredUsers = useMemo(() => {
     let result = users.slice(); // Usamos slice para evitar mutaciones directas y facilitar el orden
@@ -623,6 +647,7 @@ const handleSaveUser = useCallback(async (user, isEditing) => {
                   user={user}
                   handleEdit={handleEdit}
                   handleToggleActive={handleToggleActive}
+                  handleDelete={handleDeleteUser}
                 />
               ))
             ) : (

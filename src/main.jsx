@@ -14,9 +14,6 @@ import Usuarios from './pages/Usuarios.jsx';
 import Login from './pages/Login.jsx';
 import Configuracion from './pages/Configuracion.jsx';
 import Revision from './pages/Revision.jsx';
-import Historial from './pages/historial';
-import Registro from './pages/Registro.jsx';
-import ResetPassword from './pages/ResetPassword.jsx';
 import Tipos from './pages/Tipos.jsx';
 import Prioridades from './pages/Prioridades.jsx';
 import Maquinas from './pages/Maquinas.jsx';
@@ -40,8 +37,6 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <Dashboard /> },
       { path: "login", element: <Login /> },
-      { path: "registro", element: <Registro /> },
-      { path: "reset-password", element: <ResetPassword /> },
       { path: "solicitar", element: <SolicitudForm /> },
 
       {
@@ -100,14 +95,7 @@ const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
-      {
-        path: "historial",
-        element: (
-          <ProtectedRoute allowedRoles={["Admin IT", "Ingeniero", "Supervisor"]}>
-            <Historial />
-          </ProtectedRoute>
-        ),
-      },
+    
       {
         path: "configuracion/tipos",
         element: (
