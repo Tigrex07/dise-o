@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MachineShopApi.Data;
-using MachineShopApi.DTOs; // Importamos los DTOs
+using MachineShopApi.DTOs; // ¡Importamos los DTOs!
 using MachineShopApi.Models; // Importamos el Modelo
-using MachineShopApi.Services; // 💡 Necesario para IPasswordHasher
+using MachineShopApi.Services; // Importamos el Servicio
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -13,13 +13,12 @@ using System.Threading.Tasks;
 public class UsuariosController : ControllerBase
 {
     private readonly MachineShopContext _context;
-    private readonly IPasswordHasher _passwordHasher; // ✅ Inyección de la interfaz
+    private readonly IPasswordHasher _passwordHasher; // 🚨 PASO 1: Declarar el servicio
 
-    // 🚨 CONSTRUCTOR CORREGIDO: Inyecta IPasswordHasher
     public UsuariosController(MachineShopContext context, IPasswordHasher passwordHasher)
     {
         _context = context;
-        _passwordHasher = passwordHasher;
+        _passwordHasher = passwordHasher; // 🚨 PASO 3: Asignar
     }
 
     // 1. GET: api/Usuarios - Lista todos los usuarios
@@ -27,6 +26,7 @@ public class UsuariosController : ControllerBase
     public async Task<ActionResult<IEnumerable<UsuarioDto>>> GetUsuarios()
     {
         var usuarios = await _context.Usuarios
+            // Mapeo del Modelo (Usuario) al DTO de Lectura (UsuarioDto)
             .Select(u => new UsuarioDto
             {
                 Id = u.Id,
@@ -53,6 +53,7 @@ public class UsuariosController : ControllerBase
             return NotFound();
         }
 
+        // Mapeo al DTO de Lectura
         var usuarioDto = new UsuarioDto
         {
             Id = usuario.Id,
@@ -67,35 +68,29 @@ public class UsuariosController : ControllerBase
     }
 
     // 3. POST: api/Usuarios - CREAR un nuevo usuario
+    // Recibe el UsuarioCreationDto (sin ID)
     [HttpPost]
     public async Task<ActionResult<UsuarioDto>> PostUsuario(UsuarioCreationDTO creationDto)
     {
-        // 🚨 PASO DE DEBUGGING: Si el modelo no es válido, devuelve el error 400 con detalles.
-        if (!ModelState.IsValid)
-        {
-            return BadRequest(ModelState);
-        }
+        var hashedPassword = _passwordHasher.HashPassword(creationDto.Contrasena); // Suponiendo que creationDto tiene Contrasena
 
-        // Validar que no exista otro usuario con el mismo correo
-        var exists = await _context.Usuarios.AnyAsync(u => u.Email == creationDto.Email);
-        if (exists) return Conflict("Ya existe un usuario con ese correo.");
 
+        // 1. Mapear el DTO de Creación al Modelo de la Base de Datos
         var usuario = new Usuario
         {
             Nombre = creationDto.Nombre,
             Email = creationDto.Email,
             Area = creationDto.Area,
             Rol = creationDto.Rol,
-            Activo = true,
-
-            // ✅ Uso del servicio de hashing inyectado
-            PasswordHash = _passwordHasher.HashPassword(creationDto.Contrasena)
+            Activo = true, // Regla de negocio: un usuario nuevo siempre está activo
+            // Las colecciones de navegación (AreasResponsables, etc.) se dejan vacías al crear
+            PasswordHash = hashedPassword // 🚨 PASO 4: Asignar el hash
         };
 
         _context.Usuarios.Add(usuario);
         await _context.SaveChangesAsync();
 
-        // Devolvemos el DTO de lectura (sin el hash)
+        // 2. Mapear el Modelo creado de vuelta al DTO de Lectura para la respuesta (incluye el nuevo ID)
         var usuarioDto = new UsuarioDto
         {
             Id = usuario.Id,
@@ -106,10 +101,12 @@ public class UsuariosController : ControllerBase
             Activo = usuario.Activo
         };
 
+        // Retorna un 201 Created y la ubicación del nuevo recurso
         return CreatedAtAction(nameof(GetUsuario), new { id = usuario.Id }, usuarioDto);
     }
 
     // 4. PUT: api/Usuarios/5 - EDITAR un usuario existente
+    // Recibe el UsuarioDto (incluye el ID y la propiedad Activo para la inactivación)
     [HttpPut("{id:int}")]
     public async Task<IActionResult> PutUsuario(int id, UsuarioDto usuarioDto)
     {
@@ -118,31 +115,22 @@ public class UsuariosController : ControllerBase
             return BadRequest("El ID de la ruta no coincide con el ID del cuerpo.");
         }
 
-        // Validar el modelo para PUT
-        if (!ModelState.IsValid)
-        {
-            return BadRequest(ModelState);
-        }
-
-        var usuarioExistente = await _context.Usuarios.FirstOrDefaultAsync(u => u.Id == id);
+        // 1. Buscar el usuario existente en la base de datos
+        var usuarioExistente = await _context.Usuarios
+            .FirstOrDefaultAsync(u => u.Id == id);
 
         if (usuarioExistente == null)
         {
             return NotFound($"No se encontró un usuario con el ID {id}.");
         }
 
-        // Actualizamos campos que no son la contraseña
+        // 2. Actualizar las propiedades permitidas del Modelo Existente
+        // Esto es un 'parche' elegante (a pesar de usar PUT) que ignora las propiedades de navegación
         usuarioExistente.Nombre = usuarioDto.Nombre;
         usuarioExistente.Area = usuarioDto.Area;
         usuarioExistente.Rol = usuarioDto.Rol;
-        usuarioExistente.Activo = usuarioDto.Activo;
-
-        // 🚨 Lógica para actualizar contraseña solo si el campo Contrasena tiene un valor
-        if (!string.IsNullOrWhiteSpace(usuarioDto.Contrasena))
-        {
-            usuarioExistente.PasswordHash = _passwordHasher.HashPassword(usuarioDto.Contrasena);
-        }
-
+        usuarioExistente.Activo = usuarioDto.Activo; // Permite la inactivación/activación
+        // 3. Marcar como modificado y guardar
         _context.Entry(usuarioExistente).State = EntityState.Modified;
 
         try
@@ -161,29 +149,27 @@ public class UsuariosController : ControllerBase
             }
         }
 
-        return NoContent();
+
+
+        return NoContent(); // Retorna 204 No Content para una actualización exitosa
     }
 
-    //--------------------------
-    // Filtrado por Maquinistas
-    //--------------------------
-    [HttpGet("Maquinistas")]
-    public async Task<ActionResult<IEnumerable<UsuarioDto>>> GetMaquinistas()
-    {
-        var maquinistas = await _context.Usuarios
-            .Where(u => u.Rol == "Maquinista")
-            .Select(u => new UsuarioDto
-            {
-                Id = u.Id,
-                Nombre = u.Nombre
-            })
-            .ToListAsync();
+    // Opcional: DELETE - Generalmente no se usa en usuarios, se prefiere la inactivación.
 
-        if (maquinistas == null || maquinistas.Count == 0)
+    /*
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> DeleteUsuario(int id)
+    {
+        var usuario = await _context.Usuarios.FindAsync(id);
+        if (usuario == null)
         {
-            return NotFound("No se encontraron usuarios con el rol 'Maquinista'.");
+            return NotFound();
         }
 
-        return maquinistas;
+        _context.Usuarios.Remove(usuario);
+        await _context.SaveChangesAsync();
+
+        return NoContent();
     }
+    */
 }
