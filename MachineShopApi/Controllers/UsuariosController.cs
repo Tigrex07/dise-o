@@ -129,7 +129,12 @@ public class UsuariosController : ControllerBase
         usuarioExistente.Nombre = usuarioDto.Nombre;
         usuarioExistente.Area = usuarioDto.Area;
         usuarioExistente.Rol = usuarioDto.Rol;
-        usuarioExistente.Activo = usuarioDto.Activo; // Permite la inactivación/activación
+        usuarioExistente.Activo = usuarioDto.Activo; // Permite la inactivación/
+                                                     // if (!string.IsNullOrWhiteSpace(usuarioDto.Contrasena))
+        {
+            usuarioExistente.PasswordHash = _passwordHasher.HashPassword(usuarioDto.Contrasena);
+        }
+
         // 3. Marcar como modificado y guardar
         _context.Entry(usuarioExistente).State = EntityState.Modified;
 
@@ -180,9 +185,7 @@ public class UsuariosController : ControllerBase
         return maquinistas;
     }
 
-    // Opcional: DELETE - Generalmente no se usa en usuarios, se prefiere la inactivación.
-
-    /*
+    // 🚨 DELETE: Eliminar usuario por ID
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> DeleteUsuario(int id)
     {
@@ -195,7 +198,6 @@ public class UsuariosController : ControllerBase
         _context.Usuarios.Remove(usuario);
         await _context.SaveChangesAsync();
 
-        return NoContent();
+        return NoContent(); // 204
     }
-    */
 }
