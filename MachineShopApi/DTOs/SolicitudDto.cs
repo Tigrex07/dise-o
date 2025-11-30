@@ -11,6 +11,9 @@ namespace MachineShopApi.DTOs
         // --- Datos Desnormalizados (nombres de las FKs) ---
         public string SolicitanteNombre { get; set; } = string.Empty;
         public string PiezaNombre { get; set; } = string.Empty;
+        
+        //  PROPIEDAD FALTANTE: Agregue esta línea para que el DTO acepte el dato de la máquina
+        public string? Maquina { get; set; }
 
         // --- Datos Directos del Modelo Solicitud ---
         public DateTime FechaYHora { get; set; }

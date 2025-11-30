@@ -46,6 +46,9 @@ public class SolicitudesController : ControllerBase
             SolicitanteNombre = s.Solicitante!.Nombre, // Usamos ? por si Solicitante fuera nulo
             PiezaNombre = s.Pieza!.NombrePieza, // Usamos ? por si Pieza fuera nulo
 
+            //  CORRECCIÓN CLAVE: Mapear la Máquina desde la Pieza
+            Maquina = s.Pieza!.Maquina,
+
             FechaYHora = s.FechaYHora,
             Turno = s.Turno,
             Tipo = s.Tipo,

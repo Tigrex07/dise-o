@@ -154,6 +154,32 @@ public class UsuariosController : ControllerBase
         return NoContent(); // Retorna 204 No Content para una actualización exitosa
     }
 
+
+
+    [HttpGet("Maquinistas")]
+    public async Task<ActionResult<IEnumerable<UsuarioDto>>> GetMaquinistas()
+    {
+        // 1. Filtrar los usuarios donde el campo Rol sea "Maquinista"
+        var maquinistas = await _context.Usuarios
+            .Where(u => u.Rol == "Maquinista")
+            // 2. Seleccionar solo los campos necesarios (ID y Nombre)
+            .Select(u => new UsuarioDto // Asume que tienes un DTO simple para Usuario/Maquinista
+            {
+                Id = u.Id,
+                Nombre = u.Nombre,
+                // (Agregar otros campos necesarios, como Rol, si aplica)
+            })
+            .ToListAsync();
+
+        if (maquinistas == null || maquinistas.Count == 0)
+        {
+            // Esto es �til si todav�a no hay maquinistas registrados
+            return NotFound("No se encontraron usuarios con el rol 'Maquinista'.");
+        }
+
+        return maquinistas;
+    }
+
     // Opcional: DELETE - Generalmente no se usa en usuarios, se prefiere la inactivación.
 
     /*
