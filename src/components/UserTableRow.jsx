@@ -50,14 +50,7 @@ export default function UserTableRow({ user, handleEdit, handleToggleActive, han
             {user.activo ? <XCircle size={18} /> : <UserCheck size={18} />}
           </button>
 
-          {/* Eliminar */}
-          <button
-            title="Eliminar Usuario"
-            onClick={() => handleDelete(user)}
-            className="text-gray-500 hover:text-red-600 p-1 rounded hover:bg-red-100 transition"
-          >
-            <Trash2 size={18} />
-          </button>
+         
         </div>
       </Td>
     </tr>
