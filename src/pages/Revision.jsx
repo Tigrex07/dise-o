@@ -253,7 +253,7 @@ export default function Revision() {
             idRevisor: idRevisor, 
             prioridad: revisionData.prioridad,
             comentarios: revisionData.comentarios,
-            idMaquinistaAsignado: revisionData.prioridad !== 'RECHAZADA' ? revisionData.idMaquinistaAsignado : null,
+            idMaquinistaAsignado: revisionData.prioridad !== 'RECHAZADA' ? revisionData.idMaquinistaAsignado : 1,
             fechaHoraRevision: new Date().toISOString(),
         };
         
