@@ -7,7 +7,7 @@ import {
 
 import { useAuth } from "../context/AuthContext";
 import API_BASE_URL from "../components/apiConfig";
-
+import { ClipboardList, CheckCircle, XCircle, Users } from "lucide-react";
 // ----------------------------------------------------------------------
 // DEFINICIÓN DE ENDPOINT Y CONSTANTES
 // ----------------------------------------------------------------------
@@ -360,6 +360,7 @@ export default function Dashboard() {
     // --- ESTADOS DE DATOS ---
     const [solicitudes, setSolicitudes] = useState([]);
     const [maquinistaMap, setMaquinistaMap] = useState({}); 
+ const [users, setUsers] = useState([]); 
 
     // --- ESTADOS DE CARGA ---
     const [loadingSolicitudes, setLoadingSolicitudes] = useState(true);
@@ -383,6 +384,14 @@ export default function Dashboard() {
         estadoOperacional: null, // <-- Inicializar para el nuevo campo
     });
     const [loadingDetails, setLoadingDetails] = useState(false);
+    // --- KPIs calculados en tiempo real ---
+// --- KPIs calculados en tiempo real ---
+const solicitudesTotales = solicitudes.length;
+const solicitudesEnProceso = solicitudes.filter(s => s.estadoOperacional === "En Proceso").length;
+const solicitudesPendientes = solicitudes.filter(s => s.estadoOperacional === "Pendiente" || s.prioridadActual === "Urgente").length;
+const promedioDias = solicitudesTotales > 0
+  ? (solicitudes.reduce((acc, s) => acc + (s.diasHastaCompletado || 0), 0) / solicitudesTotales).toFixed(1)
+  : 0;
 
 
     // --- MANEJADORES DE ESTADO (Sin cambios) ---
@@ -599,7 +608,44 @@ export default function Dashboard() {
                         Dashboard de Solicitudes
                     </h1>
                 </div>
+{/* 🔹 KPIs estilo profesional */}
+<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+  {/* Total Solicitudes */}
+  <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5 flex items-center gap-4">
+    <ClipboardList className="w-10 h-10 text-indigo-600" />
+    <div>
+      <p className="text-sm text-gray-500">Total Solicitudes</p>
+      <p className="text-3xl font-bold text-gray-800">{solicitudesTotales}</p>
+    </div>
+  </div>
 
+  {/* En Proceso */}
+  <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5 flex items-center gap-4">
+    <Clock className="w-10 h-10 text-blue-600" />
+    <div>
+      <p className="text-sm text-gray-500">En Proceso</p>
+      <p className="text-3xl font-bold text-gray-800">{solicitudesEnProceso}</p>
+    </div>
+  </div>
+
+  {/* Pendientes / Críticos */}
+  <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5 flex items-center gap-4">
+    <AlertTriangle className="w-10 h-10 text-red-600" />
+    <div>
+      <p className="text-sm text-gray-500">Pendientes / Críticos</p>
+      <p className="text-3xl font-bold text-gray-800">{solicitudesPendientes}</p>
+    </div>
+  </div>
+
+  {/* Días Promedio */}
+  <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-5 flex items-center gap-4">
+    <Zap className="w-10 h-10 text-green-600" />
+    <div>
+      <p className="text-sm text-gray-500">Días promedio hasta completado</p>
+      <p className="text-3xl font-bold text-green-700">{promedioDias}</p>
+    </div>
+  </div>
+</div>
                 {/* Área de Filtros y Búsqueda */}
                 <div className="bg-white p-6 rounded-xl shadow-lg mb-6">
                     <h2 className="text-xl font-semibold text-gray-700 mb-4 flex items-center">
@@ -623,6 +669,7 @@ export default function Dashboard() {
                                 ))}
                             </select>
                         </div>
+ 
 
                         {/* Búsqueda por Texto */}
                         <div className="flex items-center space-x-2 ml-auto">
