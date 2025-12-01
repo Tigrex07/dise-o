@@ -33,17 +33,8 @@ namespace MachineShopApi.Data
             //    Esta es la columna que EF Core intentaba llenar en el comando SQL (ver tu log).
             modelBuilder.Entity<Pieza>()
                 .Property(p => p.Maquina)
-                .HasColumnName("Máquina")
+                .HasColumnName("Maquina")
                 .IsRequired();
-
-            // 2. Crear una Propiedad de Sombra (Shadow Property) para llenar la otra columna OBLIGATORIA 
-            //    'Maquina' (sin acento), que es la que está causando el error NOT NULL.
-            //    Usaremos el nombre de la Shadow Property: "MaquinaSinAcento"
-            modelBuilder.Entity<Pieza>()
-                .Property<string>("MaquinaSinAcento") // Propiedad de Sombra (Nombre temporal en C#)
-                .HasColumnName("Maquina")             // Columna real de la BD (sin acento)
-                .IsRequired()                         // Indicar que es NOT NULL
-                .HasMaxLength(50);
 
             // ====================================================================
             // RELACIONES DE SOLICITUD (Las que ya tenías)

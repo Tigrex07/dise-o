@@ -162,5 +162,67 @@ namespace MachineShopApi.Controllers
         }
 
         // NOTA: La función auxiliar RevisionExists fue eliminada para evitar el error de compilación.
+    
+
+
+
+    // ------------------------------------------------------------------
+        // 🚀 NUEVO MÉTODO PUT: Actualizar solo la Prioridad de la Revisión
+        // Ruta: PUT api/Revision/{idSolicitud}/priority
+        // ------------------------------------------------------------------
+        [HttpPut("{idSolicitud}/priority")]
+        public async Task<IActionResult> PutRevisionPriority(int idSolicitud, [FromBody] RevisionPriorityUpdateDto priorityDto)
+        {
+            // 1. Buscar la revisión existente por IdSolicitud
+            var revision = await _context.Revisiones
+                .FirstOrDefaultAsync(r => r.IdSolicitud == idSolicitud);
+
+            if (revision == null)
+            {
+                return NotFound($"No se encontró una revisión para la Solicitud ID {idSolicitud}.");
+            }
+
+            // 2. Aplicar solo el cambio de prioridad y la fecha de revisión
+            string prioridadAnterior = revision.Prioridad;
+
+            revision.Prioridad = priorityDto.NuevaPrioridad;
+            revision.FechaHoraRevision = DateTime.Now; // Opcional: Registrar cuándo se cambió la prioridad
+
+            _context.Entry(revision).State = EntityState.Modified;
+
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (!await _context.Revisiones.AnyAsync(e => e.IdSolicitud == idSolicitud))
+                {
+                    return NotFound();
+                }
+                else
+                {
+                    throw;
+                }
+            }
+
+            // 3. Opcional: Registrar el cambio en EstadoTrabajo (para historial)
+            var nuevoEstado = new EstadoTrabajo
+            {
+                IdSolicitud = idSolicitud,
+                // Opcional: Si quieres registrar qué usuario hizo el cambio (necesitas IdUsuario en el DTO o Token)
+                // IdMaquinista = 1, 
+                DescripcionOperacion = $"Prioridad de Revisión cambiada de '{prioridadAnterior}' a '{revision.Prioridad}'",
+                FechaYHoraDeInicio = DateTime.Now,
+                TiempoMaquina = 0,
+            };
+            _context.EstadoTrabajo.Add(nuevoEstado);
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
     }
+
+
+
 }

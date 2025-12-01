@@ -12,6 +12,9 @@ namespace MachineShopApi.DTOs
         [Required(ErrorMessage = "El ID del maquinista es obligatorio.")]
         public int IdMaquinista { get; set; }
 
+        public string Prioridad { get; set; }
+        public string? TiemposRegistradosJson { get; set; }
+
         [Required(ErrorMessage = "La máquina asignada es obligatoria.")]
         [MaxLength(50)]
         public string MaquinaAsignada { get; set; } = string.Empty;

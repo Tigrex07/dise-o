@@ -53,48 +53,103 @@ namespace MachineShopApi.Controllers
             return historial;
         }
 
-        // POST: api/EstadoTrabajo
-        // Esta acción registra el INICIO de un trabajo o un nuevo estado.
         [HttpPost]
-        public async Task<ActionResult<EstadoTrabajo>> PostEstadoTrabajo(EstadoTrabajoCreationDto estadoDto)
+        public async Task<ActionResult<EstadoTrabajo>> PostEstadoTrabajo([FromBody] EstadoTrabajoCreationDto estadoDto)
         {
-            // Validaciones de existencia de FKs
-            var solicitudExiste = await _context.Solicitudes.AnyAsync(s => s.Id == estadoDto.IdSolicitud);
-            var maquinistaExiste = await _context.Usuarios.AnyAsync(u => u.Id == estadoDto.IdMaquinista);
+            // 1. Obtener la Solicitud y validaciones básicas
+            var solicitud = await _context.Solicitudes
+                .Include(s => s.Revision)
+                .FirstOrDefaultAsync(s => s.Id == estadoDto.IdSolicitud);
 
-            if (!solicitudExiste || !maquinistaExiste)
+            if (solicitud == null || !await _context.Usuarios.AnyAsync(u => u.Id == estadoDto.IdMaquinista))
             {
                 return BadRequest("El ID de Solicitud o Maquinista proporcionado no es válido.");
             }
 
-            // 1. Crear el registro de inicio de trabajo
-            var estadoTrabajo = new EstadoTrabajo
+            // =================================================
+            // 2. LÓGICA DE CIERRE DE OPERACIÓN PREVIA
+            // Se calcula el tiempo trabajado en el segmento anterior (si estaba en progreso)
+            // =================================================
+            var ultimaOperacionAbierta = await _context.EstadoTrabajo
+                .Where(e => e.IdSolicitud == estadoDto.IdSolicitud && e.FechaYHoraDeFin == null)
+                .OrderByDescending(e => e.FechaYHoraDeInicio)
+                .FirstOrDefaultAsync();
+
+            if (ultimaOperacionAbierta != null)
             {
-                IdSolicitud = estadoDto.IdSolicitud,
-                IdMaquinista = estadoDto.IdMaquinista,
-                MaquinaAsignada = estadoDto.MaquinaAsignada,
-                DescripcionOperacion = estadoDto.DescripcionOperacion,
-                Observaciones = estadoDto.Observaciones,
+                ultimaOperacionAbierta.FechaYHoraDeFin = DateTime.Now;
+                TimeSpan duracion = ultimaOperacionAbierta.FechaYHoraDeFin.Value - ultimaOperacionAbierta.FechaYHoraDeInicio;
+                ultimaOperacionAbierta.TiempoMaquina = (decimal)duracion.TotalHours;
+                _context.Entry(ultimaOperacionAbierta).State = EntityState.Modified;
+            }
 
-                // 💡 INICIO: Se registra el tiempo de inicio
-                FechaYHoraDeInicio = DateTime.Now,
+            // =================================================
+            // 3. CONTROL DE FLUJO
+            // =================================================
 
-                // 💡 INICIO: La fecha de fin es NULL y el tiempo es 0.00
-                FechaYHoraDeFin = null,
-                TiempoMaquina = 0.00m,
-            };
+            // 💡 FLUJO A: FINALIZAR EL TRABAJO
+            if (estadoDto.Prioridad == "Completado")
+            {
+                // 3a. Validar si la Revisión existe para poder actualizar la Prioridad.
+                if (solicitud.Revision == null)
+                {
+                    return StatusCode(500, "Error: No se encontró la revisión asociada para actualizar la prioridad.");
+                }
 
-            // 🚨 IMPORTANTE: Usar el nombre del DbSet correcto (EstadoTrabajo)
-            _context.EstadoTrabajo.Add(estadoTrabajo);
+                // 3b. Actualizar la Prioridad de la Revisión (Esto mueve el estado en los filtros)
+                solicitud.Revision.Prioridad = "Completado";
 
-            // 🚨 ELIMINADO: Ya no actualizamos Solicitud.EstadoActual porque fue eliminado. 
-            // El estado se infiere de este nuevo registro de EstadoTrabajo.
+                // 3c. Opcional: Almacenar los Tiempos Registrados (si el modelo Solicitud no lo permite, 
+                // se puede almacenar en la tabla de Observaciones o en un campo de la Solicitud).
+                // Si la Solicitud no tiene un campo para tiempos, puedes guardarlo en las Observaciones
+                // de la última operación o en un nuevo registro de EstadoTrabajo.
 
-            await _context.SaveChangesAsync();
+                // Opción simple: Si queremos guardar el JSON de tiempos en la última operación cerrada:
+                if (ultimaOperacionAbierta != null)
+                {
+                    ultimaOperacionAbierta.Observaciones =
+                        (ultimaOperacionAbierta.Observaciones ?? string.Empty)
+                        + "\n--- Tiempos Finales ---\n"
+                        + estadoDto.TiemposRegistradosJson;
+                    ultimaOperacionAbierta.Observaciones = estadoDto.Observaciones; // Sobreescribe con las observaciones finales
 
-            // Usar Id para el CreatedAtAction (asumiendo que IdEstado es la PK)
-            return CreatedAtAction(nameof(GetHistorialSolicitud), new { idSolicitud = estadoTrabajo.IdSolicitud }, estadoTrabajo);
+                    _context.Entry(ultimaOperacionAbierta).State = EntityState.Modified;
+                }
+
+                // 3d. Guardar cambios (Cierre de última operación y cambio de prioridad)
+                await _context.SaveChangesAsync();
+
+                return NoContent(); // Respuesta 204 para indicar éxito sin contenido de retorno
+            }
+
+            // 💡 FLUJO B: INICIO o PAUSA (Cualquier otra acción que no sea "Completado")
+            else
+            {
+                // 3e. Crear un nuevo registro de estado (INICIO o PAUSA)
+                var nuevoEstadoTrabajo = new EstadoTrabajo
+                {
+                    IdSolicitud = estadoDto.IdSolicitud,
+                    IdMaquinista = estadoDto.IdMaquinista,
+                    // Se usa la máquina asignada de la Solicitud, o del DTO si se manda.
+                    MaquinaAsignada = estadoDto.MaquinaAsignada ?? solicitud.Pieza.Maquina,
+                    DescripcionOperacion = estadoDto.DescripcionOperacion,
+                    Observaciones = estadoDto.Observaciones,
+                    FechaYHoraDeInicio = DateTime.Now,
+                    FechaYHoraDeFin = null, // Se deja abierto
+                    TiempoMaquina = 0.00m,
+                };
+
+                _context.EstadoTrabajo.Add(nuevoEstadoTrabajo);
+
+                // 3f. Guardar cambios (Cierre de operación previa y creación de la nueva)
+                await _context.SaveChangesAsync();
+
+                return CreatedAtAction(nameof(GetHistorialSolicitud), new { idSolicitud = nuevoEstadoTrabajo.IdSolicitud }, nuevoEstadoTrabajo);
+            }
         }
+
+
+
 
         // PUT: api/EstadoTrabajo/5
         // Esta acción registra el FIN de un trabajo, calcula el tiempo y avanza la solicitud.

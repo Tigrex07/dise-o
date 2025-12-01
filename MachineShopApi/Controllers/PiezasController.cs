@@ -46,7 +46,7 @@ namespace MachineShopApi.Controllers
 
         // POST: api/Piezas
         [HttpPost]
-        public async Task<ActionResult<Pieza>> PostPieza(PiezaCreationDto piezaDto)
+        public async Task<ActionResult<Pieza>> PostPieza([FromBody] PiezaCreationDto piezaDto)
         {
             // Validar si el IdArea existe antes de crear la pieza
             var areaExiste = await _context.Areas.AnyAsync(a => a.Id == piezaDto.IdArea);

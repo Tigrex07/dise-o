@@ -143,8 +143,7 @@ public class SolicitudesController : ControllerBase
             Maquina = solicitudDto.Maquina
         };
 
-        // Llenar Propiedad de Sombra para columna 'Maquina' (sin acento)
-        _context.Entry(nuevaPieza).Property("MaquinaSinAcento").CurrentValue = solicitudDto.Maquina;
+        
 
         _context.Piezas.Add(nuevaPieza);
 
@@ -220,6 +219,49 @@ public class SolicitudesController : ControllerBase
         // HTTP 204 No Content: Indica que la acción se completó exitosamente sin devolver un cuerpo.
         return NoContent();
     }
-  
-    
+
+
+    // GET: api/Solicitudes/AsignacionesPorMaquinista?id=5&estadoFiltro=activo
+    [HttpGet("AsignacionesPorMaquinista")]
+    public async Task<ActionResult<IEnumerable<SolicitudDto>>> GetAsignacionesPorMaquinista(
+        [FromQuery] int id,
+        [FromQuery] string estadoFiltro = "activo") // El valor por defecto es 'activo'
+    {
+        var solicitudesQuery = GetBaseSolicitudQuery();
+
+        var query = solicitudesQuery
+            .Where(s =>
+                s.Revision != null &&
+                s.Operaciones.Any(op => op.IdMaquinista == id)
+            );
+
+        // Lógica de Filtrado por Estado
+        switch (estadoFiltro.ToLower())
+        {
+            case "completado":
+                // Mostrar solo las completadas
+                query = query.Where(s => s.Revision!.Prioridad == "Completado");
+                break;
+
+            case "historial":
+                // Mostrar TODO (activas + completadas, pero no rechazadas)
+                query = query.Where(s => s.Revision!.Prioridad != "RECHAZADA");
+                break;
+
+            case "activo": // Caso por defecto: Pendientes, En progreso, etc.
+            default:
+                // Mostrar activas (no Rechazadas ni Completadas)
+                query = query.Where(s =>
+                    s.Revision!.Prioridad != "RECHAZADA" &&
+                    s.Revision!.Prioridad != "Completado"
+                );
+                break;
+        }
+
+        var solicitudes = await query.ToListAsync();
+        var solicitudDtos = solicitudes.Select(MapToDto).ToList();
+
+        return solicitudDtos;
+    }
+
 }
