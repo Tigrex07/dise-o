@@ -32,18 +32,25 @@ export default function MainLayout() {
         <div className="p-4 text-2xl font-bold text-center border-b border-gray-700">
           Molds Tracker
         </div>
-        <nav className="flex-1 p-4 space-y-2">
-          <SidebarItem icon={<Home size={18} />} label="Dashboard" to="/" currentPath={location.pathname} />
-          <SidebarItem icon={<Factory size={18} />} label="Nueva Solicitud" to="/solicitar" currentPath={location.pathname} />
-          <SidebarItem icon={<Tally5 size={18} />} label="Mi Trabajo" to="/trabajo/mis-asignaciones" currentPath={location.pathname} />
-          <SidebarItem icon={<UserCheck size={18} />} label="Revisión" to="/revision" currentPath={location.pathname} />
-          <SidebarItem icon={<AlertTriangle size={18} />} label="Reportes" to="/reportes" currentPath={location.pathname} />
-          <SidebarItem icon={<Users size={18} />} label="Usuarios" to="/usuarios" currentPath={location.pathname} />
-          <SidebarItem icon={<Settings size={18} />} label="Configuración" to="/configuracion" currentPath={location.pathname} />
+       <nav className="flex-1 p-4 space-y-2">
+  <SidebarItem icon={<Home size={18} />} label="Dashboard" to="/" currentPath={location.pathname} />
+  <SidebarItem icon={<Factory size={18} />} label="Nueva Solicitud" to="/solicitar" currentPath={location.pathname} />
+  <SidebarItem icon={<Tally5 size={18} />} label="Mi Trabajo" to="/trabajo/mis-asignaciones" currentPath={location.pathname} />
+  <SidebarItem icon={<UserCheck size={18} />} label="Revisión" to="/revision" currentPath={location.pathname} />
+  <SidebarItem icon={<AlertTriangle size={18} />} label="Reportes" to="/reportes" currentPath={location.pathname} />
+  <SidebarItem icon={<Users size={18} />} label="Usuarios" to="/usuarios" currentPath={location.pathname} />
+  <SidebarItem icon={<Settings size={18} />} label="Configuración" to="/configuracion" currentPath={location.pathname} />
 
-          {/* 🔑 Botón de login fijo */}
-          <SidebarItem icon={<UserCircle size={18} />} label="Iniciar Sesión" to="/login" currentPath={location.pathname} />
-        </nav>
+  {/* 🔑 Mostrar login solo si NO hay sesión */}
+  {!isAuthenticated && (
+    <SidebarItem
+      icon={<UserCircle size={18} />}
+      label="Iniciar Sesión"
+      to="/login"
+      currentPath={location.pathname}
+    />
+  )}
+</nav>
 
         {/* Info de usuario y logout solo si hay sesión */}
         {isAuthenticated && (
