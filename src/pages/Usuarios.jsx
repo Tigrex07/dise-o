@@ -329,14 +329,7 @@ function UserTableRow({ user, handleEdit, handleToggleActive, handleDelete }) {
             {user.activo ? <XCircle size={18} /> : <UserCheck size={18} />}
           </button>
 
-          {/* 🚨 Eliminar */}
-          <button
-            title="Eliminar Usuario"
-            onClick={() => handleDelete(user)}
-            className="text-gray-500 hover:text-red-600 p-1 rounded hover:bg-red-100 transition"
-          >
-            <Trash size={18} />
-          </button>
+         
         </div>
       </Td>
     </tr>
@@ -438,21 +431,32 @@ const handleSaveUser = useCallback(async (user, isEditing) => {
     setIsLoading(true);
     setError(null);
 
-    const updatedUser = { ...user, activo: !user.activo };
+const updatedUser = {
+  Id: user.id,
+  Nombre: user.nombre,
+  Email: user.email,
+  Rol: user.rol,
+  Area: user.area,
+  Activo: !user.activo,
+  Contrasena: "" // 👈 importante: evita que el backend truene
+};
+
 
     try {
-      const response = await fetch(`${API_USUARIOS_URL}/${user.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedUser),
-      });
-      if (!response.ok) throw new Error('Error al cambiar estado.');
-      await fetchUsers();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setIsLoading(false);
-    }
+  const response = await fetch(`${API_USUARIOS_URL}/${user.id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(updatedUser),
+  });
+
+  if (!response.ok) throw new Error('Error al cambiar estado.');
+  await fetchUsers();
+} catch (err) {
+  setError(err.message);
+} finally {
+  setIsLoading(false);
+}
+
   }, [fetchUsers]);
   // Eliminar usuario
   const handleDeleteUser = async (user) => {
