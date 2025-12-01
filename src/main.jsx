@@ -48,13 +48,13 @@ const router = createBrowserRouter([
         ),
       },
       {
-        path: "trabajo/:id",
-        element: (
-          <ProtectedRoute allowedRoles={["Admin IT", "Ingeniero", "Supervisor"]}>
-            <TrabajoDetail />
-          </ProtectedRoute>
-        ),
-      },
+  path: "trabajo/:id",
+  element: (
+    <ProtectedRoute allowedRoles={["Admin IT", "Ingeniero", "Supervisor", "Operador", "Maquinista"]}>
+      <TrabajoDetail />
+    </ProtectedRoute>
+  ),
+},
       {
         path: "revision-calidad/:id",
         element: (
