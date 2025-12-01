@@ -129,8 +129,9 @@ public class UsuariosController : ControllerBase
         usuarioExistente.Nombre = usuarioDto.Nombre;
         usuarioExistente.Area = usuarioDto.Area;
         usuarioExistente.Rol = usuarioDto.Rol;
-        usuarioExistente.Activo = usuarioDto.Activo; // Permite la inactivación/
-                                                     // if (!string.IsNullOrWhiteSpace(usuarioDto.Contrasena))
+        usuarioExistente.Activo = usuarioDto.Activo;
+
+        if (!string.IsNullOrWhiteSpace(usuarioDto.Contrasena))
         {
             usuarioExistente.PasswordHash = _passwordHasher.HashPassword(usuarioDto.Contrasena);
         }
