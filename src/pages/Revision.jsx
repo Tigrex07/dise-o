@@ -476,7 +476,7 @@ export default function Revision() {
     );
 }
 // ----------------------------------------------------------------------
-// COMPONENTE MODAL DE REVISIÓN
+// COMPONENTE MODAL DE REVISIÓN (ACTUALIZADO CON SCROLL)
 // ----------------------------------------------------------------------
 function RevisionModal({ isOpen, onClose, solicitud, maquinistas, onSave, isSaving }) {
     
@@ -521,7 +521,7 @@ function RevisionModal({ isOpen, onClose, solicitud, maquinistas, onSave, isSavi
 
     return (
         <div 
-            // Fondo con efecto blur (como en Dashboard)
+            // Fondo con efecto blur
             className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-gray-900/60 p-4 transition-opacity" 
             aria-labelledby="modal-title"
             role="dialog"
@@ -531,7 +531,6 @@ function RevisionModal({ isOpen, onClose, solicitud, maquinistas, onSave, isSavi
                 <div 
                     className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full"
                 >
-                    {/* 🚨 CORRECCIÓN: Se añade la clase 'relative' a este div para anclar el botón de cerrar 'X' */}
                     <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4 relative">
                         <div className="sm:flex sm:items-start">
                             <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 sm:mx-0 sm:h-10 sm:w-10">
@@ -545,7 +544,7 @@ function RevisionModal({ isOpen, onClose, solicitud, maquinistas, onSave, isSavi
                             </div>
                         </div>
                         
-                        {/* ✅ BOTÓN DE CERRAR MODAL SIN ACCIÓN (Ahora visible) */}
+                        {/* BOTÓN DE CERRAR MODAL */}
                         <button
                             onClick={onClose}
                             className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-1 rounded-full hover:bg-gray-100 transition"
@@ -554,119 +553,124 @@ function RevisionModal({ isOpen, onClose, solicitud, maquinistas, onSave, isSavi
                             <X size={20} />
                         </button>
                         
-                        {/* 1. Detalles de la Solicitud Seleccionada */}
-                        <div className="mt-5 border border-gray-200 p-4 rounded-lg mb-6 bg-gray-50">
-                            <h3 className="text-lg font-semibold text-gray-700 mb-3 border-b pb-2">Detalles de la Solicitud</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-3">
-                                
-                                <DetailItem 
-                                    icon={Briefcase} 
-                                    label="Pieza" 
-                                    // ✅ Estructura Pieza (Máquina)
-                                    value={`${solicitud.piezaNombre} (${solicitud.maquina || 'N/A'})`} 
-                                />
+                        {/* 🌟 CONTENEDOR DE SCROLL 🌟 */}
+                        {/* Aplica max-h-[70vh] y overflow-y-auto al contenido principal */}
+                        <div className="mt-4 max-h-[70vh] overflow-y-auto pr-4"> 
 
-                                <DetailItem icon={Clock} label="Turno" value={solicitud.turno} />
-                                <DetailItem icon={Zap} label="Tipo de Trabajo" value={solicitud.tipo} />
-                                <DetailItem icon={AlertTriangle} label="Prioridad Actual" value={solicitud.prioridadActual || 'En Revisión'} />
-                            </div>
-                            <div className="p-2 bg-white rounded-lg border">
-                                <p className="text-xs font-medium text-gray-500 mb-1">Detalles/Descripción:</p>
-                                <p className="text-sm text-gray-800 italic">{solicitud.detalles}</p>
-                            </div>
-                        </div>
-                        
-                        {/* 2. Formulario de Revisión */}
-                        <form onSubmit={handleSubmit}>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                
-                                {/* Prioridad */}
-                                <div>
-                                    <label htmlFor="prioridad" className="block text-sm font-medium text-gray-700 mb-1">
-                                        Prioridad de Trabajo
-                                    </label>
-                                    <select
-                                        id="prioridad"
-                                        name="prioridad"
-                                        value={revisionData.prioridad}
-                                        onChange={handleRevisionChange}
-                                        required
-                                        className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
-                                    >
-                                        <option value="Baja">Baja</option>
-                                        <option value="Media">Media</option>
-                                        <option value="Alta">Alta</option>
-                                        <option value="Urgente">Urgente</option>
-                                        <option value="RECHAZADA">RECHAZADA</option>
-                                    </select>
+                            {/* 1. Detalles de la Solicitud Seleccionada */}
+                            <div className="border border-gray-200 p-4 rounded-lg mb-6 bg-gray-50">
+                                <h3 className="text-lg font-semibold text-gray-700 mb-3 border-b pb-2">Detalles de la Solicitud</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-3">
+                                    
+                                    <DetailItem 
+                                        icon={Briefcase} 
+                                        label="Pieza" 
+                                        // Estructura Pieza (Máquina)
+                                        value={`${solicitud.piezaNombre} (${solicitud.maquina || 'N/A'})`} 
+                                    />
+
+                                    <DetailItem icon={Clock} label="Turno" value={solicitud.turno} />
+                                    <DetailItem icon={Zap} label="Tipo de Trabajo" value={solicitud.tipo} />
+                                    <DetailItem icon={AlertTriangle} label="Prioridad Actual" value={solicitud.prioridadActual || 'En Revisión'} />
                                 </div>
-                                
-                                {/* Asignación de Maquinista (solo si no es rechazada) */}
-                                {revisionData.prioridad !== 'RECHAZADA' && (
+                                <div className="p-2 bg-white rounded-lg border">
+                                    <p className="text-xs font-medium text-gray-500 mb-1">Detalles/Descripción:</p>
+                                    <p className="text-sm text-gray-800 italic">{solicitud.detalles}</p>
+                                </div>
+                            </div>
+                            
+                            {/* 2. Formulario de Revisión */}
+                            <form onSubmit={handleSubmit}>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    
+                                    {/* Prioridad */}
                                     <div>
-                                        <label htmlFor="idMaquinistaAsignado" className="block text-sm font-medium text-gray-700 mb-1">
-                                            Asignar Maquinista Inicial
+                                        <label htmlFor="prioridad" className="block text-sm font-medium text-gray-700 mb-1">
+                                            Prioridad de Trabajo
                                         </label>
                                         <select
-                                            id="idMaquinistaAsignado"
-                                            name="idMaquinistaAsignado"
-                                            value={revisionData.idMaquinistaAsignado}
+                                            id="prioridad"
+                                            name="prioridad"
+                                            value={revisionData.prioridad}
                                             onChange={handleRevisionChange}
-                                            required={revisionData.prioridad !== 'RECHAZADA'}
+                                            required
                                             className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
                                         >
-                                            <option value="">Seleccione un Maquinista</option>
-                                            {maquinistas.map(m => (
-                                                <option key={m.id} value={m.id}>{m.nombre}</option>
-                                            ))}
+                                            <option value="Baja">Baja</option>
+                                            <option value="Media">Media</option>
+                                            <option value="Alta">Alta</option>
+                                            <option value="Urgente">Urgente</option>
+                                            <option value="RECHAZADA">RECHAZADA</option>
                                         </select>
                                     </div>
-                                )}
+                                    
+                                    {/* Asignación de Maquinista (solo si no es rechazada) */}
+                                    {revisionData.prioridad !== 'RECHAZADA' && (
+                                        <div>
+                                            <label htmlFor="idMaquinistaAsignado" className="block text-sm font-medium text-gray-700 mb-1">
+                                                Asignar Maquinista Inicial
+                                            </label>
+                                            <select
+                                                id="idMaquinistaAsignado"
+                                                name="idMaquinistaAsignado"
+                                                value={revisionData.idMaquinistaAsignado}
+                                                onChange={handleRevisionChange}
+                                                required={revisionData.prioridad !== 'RECHAZADA'}
+                                                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+                                            >
+                                                <option value="">Seleccione un Maquinista</option>
+                                                {maquinistas.map(m => (
+                                                    <option key={m.id} value={m.id}>{m.nombre}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
 
-                                {/* Comentarios */}
-                                <div className="md:col-span-2">
-                                    <label htmlFor="comentarios" className="block text-sm font-medium text-gray-700 mb-1">
-                                        Comentarios y Notas de Ingeniería (Obligatorio)
-                                    </label>
-                                    <textarea
-                                        id="comentarios"
-                                        name="comentarios"
-                                        rows="3"
-                                        value={revisionData.comentarios}
-                                        onChange={handleRevisionChange}
-                                        required
-                                        className="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-                                    />
+                                    {/* Comentarios */}
+                                    <div className="md:col-span-2">
+                                        <label htmlFor="comentarios" className="block text-sm font-medium text-gray-700 mb-1">
+                                            Comentarios y Notas de Ingeniería (Obligatorio)
+                                        </label>
+                                        <textarea
+                                            id="comentarios"
+                                            name="comentarios"
+                                            rows="3"
+                                            value={revisionData.comentarios}
+                                            onChange={handleRevisionChange}
+                                            required
+                                            className="mt-1 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
+                                        />
+                                    </div>
                                 </div>
-                            </div>
+                            
+                                {/* Botones de Acción (Dentro del formulario, pero fuera del div de scroll) */}
+                                <div className="flex justify-between pt-5 mt-4 border-t">
+                                    {/* Botón de Rechazar Solicitud */}
+                                    {revisionData.prioridad !== 'RECHAZADA' && (
+                                        <button
+                                            type="button" 
+                                            onClick={handleRejectSolicitud}
+                                            disabled={isSaving}
+                                            className={`flex items-center px-4 py-2 text-sm font-medium rounded-lg shadow-md transition ${isSaving ? 'bg-gray-400 text-gray-700 cursor-not-allowed' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}
+                                        >
+                                            <X size={18} className="mr-2" />
+                                            Marcar como Rechazada
+                                        </button>
+                                    )}
 
-                            {/* Botones de Acción */}
-                            <div className="flex justify-between pt-5 mt-4 border-t">
-                                {/* Botón de Rechazar Solicitud */}
-                                {revisionData.prioridad !== 'RECHAZADA' && (
+                                    {/* Botón de Guardar Revisión (Aprobar) - type="submit" */}
                                     <button
-                                        type="button" 
-                                        onClick={handleRejectSolicitud}
-                                        disabled={isSaving}
-                                        className={`flex items-center px-4 py-2 text-sm font-medium rounded-lg shadow-md transition ${isSaving ? 'bg-gray-400 text-gray-700 cursor-not-allowed' : 'bg-red-100 text-red-700 hover:bg-red-200'}`}
+                                        type="submit"
+                                        // Deshabilita si está guardando O si no es RECHAZADA Y falta el Maquinista
+                                        disabled={isSaving || (revisionData.prioridad !== 'RECHAZADA' && !revisionData.idMaquinistaAsignado) }
+                                        className={`flex items-center px-4 py-2 text-sm font-medium text-white rounded-lg shadow-md transition ${isSaving || (revisionData.prioridad !== 'RECHAZADA' && !revisionData.idMaquinistaAsignado) ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
                                     >
-                                        <X size={18} className="mr-2" />
-                                        Marcar como Rechazada
+                                        <Save size={18} className="mr-2" />
+                                        {isSaving ? 'Guardando...' : (revisionData.prioridad === 'RECHAZADA' ? 'Confirmar Rechazo' : 'Aprobar y Asignar')}
                                     </button>
-                                )}
-
-                                {/* Botón de Guardar Revisión (Aprobar) - type="submit" */}
-                                <button
-                                    type="submit"
-                                    // Deshabilita si está guardando O si no es RECHAZADA Y falta el Maquinista
-                                    disabled={isSaving || (revisionData.prioridad !== 'RECHAZADA' && !revisionData.idMaquinistaAsignado) }
-                                    className={`flex items-center px-4 py-2 text-sm font-medium text-white rounded-lg shadow-md transition ${isSaving || (revisionData.prioridad !== 'RECHAZADA' && !revisionData.idMaquinistaAsignado) ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
-                                >
-                                    <Save size={18} className="mr-2" />
-                                    {isSaving ? 'Guardando...' : (revisionData.prioridad === 'RECHAZADA' ? 'Confirmar Rechazo' : 'Aprobar y Asignar')}
-                                </button>
-                            </div>
-                        </form>
+                                </div>
+                            </form>
+                        </div> {/* FIN DEL CONTENEDOR DE SCROLL */}
                     </div>
                 </div>
             </div>
