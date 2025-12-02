@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using MachineShopApi.Models;
 using System;
 
@@ -93,11 +93,11 @@ namespace MachineShopApi.Data
                 new Usuario
                 {
                     Id = 1,
-                    Nombre = "Revisión de Ingeniería",
-                    Email = "system@molex.com",
-                    PasswordHash = "SYSTEM_RESERVED",
+                    Nombre = "Equipo Tigrex",
+                    Email = "tigrexteam@molex.com",
+                    PasswordHash = "$2a$12$sf1MZFzuH8p9iYCZ3Z8YIuJVbEI4XUm7LAle1qvnCYV3vO36a3vMO",
                     Area = "Ingeniería",
-                    Rol = "Sistema",
+                    Rol = "Master",
                     Activo = true
                 }
             );
