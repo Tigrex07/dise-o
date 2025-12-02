@@ -10,6 +10,7 @@
 	<ItemGroup>
 		<!-- Paquetes base de ASP.NET Core y Entity Framework Core -->
 		<PackageReference Include="BCrypt.Net-Next" Version="4.0.3" />
+		<PackageReference Include="MailKit" Version="4.14.1" />
 		<PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.0" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.0" />
 
@@ -28,6 +29,7 @@
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 			<PrivateAssets>all</PrivateAssets>
 		</PackageReference>
+		<PackageReference Include="MimeKit" Version="4.14.0" />
 
 		<!-- Swashbuckle para generar documentación y UI de Swagger -->
 		<PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />

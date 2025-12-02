@@ -162,11 +162,11 @@ namespace MachineShopApi.Controllers
         }
 
         // NOTA: La función auxiliar RevisionExists fue eliminada para evitar el error de compilación.
-    
 
 
 
-    // ------------------------------------------------------------------
+
+        // ------------------------------------------------------------------
         // 🚀 NUEVO MÉTODO PUT: Actualizar solo la Prioridad de la Revisión
         // Ruta: PUT api/Revision/{idSolicitud}/priority
         // ------------------------------------------------------------------

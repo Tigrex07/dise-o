@@ -20,6 +20,8 @@ namespace MachineShopApi.Data
         public DbSet<EstadoTrabajo> EstadoTrabajo { get; set; } = default!;
         public DbSet<Revision> Revisiones { get; set; } = default!;
 
+        public DbSet<MaquinaMS> MaquinasMS { get; set; } = default!;
+
         // Configuración de Modelos y Relaciones (Fluent API)
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

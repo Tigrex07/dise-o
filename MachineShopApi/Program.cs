@@ -3,6 +3,7 @@ using MachineShopApi.Data;
 using Microsoft.OpenApi.Models;
 using System.Text.Json.Serialization;
 using MachineShopApi.Services; // Necesario para IPasswordHasher
+using EmailService;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -55,6 +56,20 @@ builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "Machine Shop API", Version = "v1" });
 });
+
+
+var emailSettings = builder.Configuration.GetSection("EmailSettings").Get<EmailSettings>();
+
+if (emailSettings != null)
+{
+    // 2. Registrar el objeto EmailSettings como Singleton
+    // El EmailService lo necesita en su constructor.
+    builder.Services.AddSingleton(emailSettings);
+
+    // 3. Registrar el EmailService con alcance (Scope)
+    // Esto permite que el controlador lo use.
+    builder.Services.AddScoped<EmailService.EmailService>();
+}
 
 var app = builder.Build();
 
