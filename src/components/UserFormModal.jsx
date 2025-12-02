@@ -75,7 +75,7 @@ export default function UserFormModal({ isOpen, userToEdit, onClose, onSave }) {
     }
   };
 
-  const ROLES = ["Admin IT", "Ingeniero", "Operador", "Maquinista"];
+  const ROLES = ["Admin IT", "Ingeniero", "Operador", "Maquinista", "Master"];
   const AREAS = ["Machine Shop", "Inyección", "Extrusión", "Mantenimiento", "IT/Sistemas", "Otros"];
 
   return (
