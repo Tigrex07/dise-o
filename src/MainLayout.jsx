@@ -56,7 +56,7 @@ export default function MainLayout() {
       { icon: <Tally5 size={18} />, label: "Mi Trabajo", to: "/trabajo/mis-asignaciones" },
       { icon: <UserCheck size={18} />, label: "Revisión", to: "/revision" },
       { icon: <AlertTriangle size={18} />, label: "Reportes", to: "/reportes" },
-      { icon: <Users size={18} />, label: "Usuarios", to: "/usuarios" },
+      
       { icon: <Settings size={18} />, label: "Configuración", to: "/configuracion" },
     ],
     "Master": [
@@ -66,7 +66,7 @@ export default function MainLayout() {
       { icon: <Tally5 size={18} />, label: "Mi Trabajo", to: "/trabajo/mis-asignaciones" },
       { icon: <UserCheck size={18} />, label: "Revisión", to: "/revision" },
       { icon: <AlertTriangle size={18} />, label: "Reportes", to: "/reportes" },
-      { icon: <Users size={18} />, label: "Usuarios", to: "/usuarios" },
+      
       { icon: <Settings size={18} />, label: "Configuración", to: "/configuracion" },
     ],
   };
