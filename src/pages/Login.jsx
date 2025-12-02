@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   User, 
   XCircle, 
@@ -13,12 +13,15 @@ import API_BASE_URL from '../components/apiConfig';
 import { useAuth } from "../context/AuthContext"; 
 import { useNavigate } from "react-router-dom";
 
+
 // Define la URL del endpoint de Login
 const API_LOGIN_URL = `${API_BASE_URL}/auth/login`; 
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, isAuthenticated } = useAuth(); // 👈 junta login e isAuthenticated aquí
   const navigate = useNavigate();
+
+  // Estados
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -26,6 +29,21 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false); // Estado para el mensaje de éxito
+
+  // ✅ Limpia mensajes si no hay sesión
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setSuccess(false);
+      setError("");
+    }
+  }, [isAuthenticated]);
+
+  // ✅ Redirige si ya hay sesión
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate("/"); // 👈 manda al dashboard
+    }
+  }, [isAuthenticated, navigate]);
 
   // Función de validación de correo simple
   const validateEmail = (v) => /^[^@]+@[^@]+\.[^@]+$/.test(v);

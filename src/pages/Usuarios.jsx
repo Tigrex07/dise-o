@@ -143,7 +143,7 @@ function UserFormModal({ isOpen, userToEdit, onClose, onSave }) {
     }
   };
 
-  const ROLES = ['Admin IT', 'Ingeniero', 'Operador', 'Maquinista'];
+  const ROLES = ["Admin IT", "Ingeniero", "Operador", "Maquinista", "Master"];
   const AREAS = ['Machine Shop', 'Inyección', 'Extrusión', 'Mantenimiento', 'IT/Sistemas', 'Otros'];
     return (
     <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-gray-900/60 p-4">
