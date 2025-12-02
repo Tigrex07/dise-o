@@ -2,13 +2,14 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Users, PlusCircle, Edit, UserCheck, XCircle,
   Loader2, RefreshCw, AlertTriangle, Search, X,
-  AlertCircle, User, ChevronLeft, ChevronRight // 🚨 Se agregaron los iconos de paginación
+  AlertCircle, User, ChevronLeft, ChevronRight, Briefcase,
 } from 'lucide-react';
 import API_BASE_URL from '../components/apiConfig';
 import { Trash } from 'lucide-react';
 
 
 const API_USUARIOS_URL = `${API_BASE_URL}/usuarios`;
+const API_AREAS_URL = `${API_BASE_URL}/Areas`;
 
 // 👇 Aquí pegas el ConfirmActionModal completo
 function ConfirmActionModal({ isOpen, title, message, actionButtonText, onConfirm, onCancel, data }) {
@@ -48,23 +49,34 @@ function ConfirmActionModal({ isOpen, title, message, actionButtonText, onConfir
     </div>
   );
 }
-function UserFormModal({ isOpen, userToEdit, onClose, onSave }) {
+
+// ----------------------------------------------------------------------
+// MODAL DE CREACIÓN/EDICIÓN DE USUARIO (con corrección de áreas)
+// ----------------------------------------------------------------------
+function UserFormModal({ isOpen, userToEdit, onClose, onSave, areas }) {
   const isEditing = !!userToEdit;
   const [formData, setFormData] = useState({
     nombre: '',
     email: '',
     rol: 'Operador',
-    area: 'Machine Shop',
+    area: '',
     activo: true,
     password: ''
   });
-  
+
   const [formError, setFormError] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       setFormError(null);
+      
+      // ✅ CORRECCIÓN 1: Definir área por defecto usando nombreArea
+      const firstArea = areas[0];
+      const defaultArea = areas.length > 0 
+        ? (firstArea.nombreArea || firstArea.nombre || (typeof firstArea === 'string' ? firstArea : ''))
+        : '';
+
       if (userToEdit) {
         setFormData({
           nombre: userToEdit.nombre,
@@ -79,13 +91,13 @@ function UserFormModal({ isOpen, userToEdit, onClose, onSave }) {
           nombre: '',
           email: '',
           rol: 'Operador',
-          area: 'Machine Shop',
+          area: defaultArea, // Establecer área por defecto de la API
           activo: true,
           password: ''
         });
       }
     }
-  }, [isOpen, userToEdit]);
+  }, [isOpen, userToEdit, areas]);
 
   if (!isOpen) return null;
 
@@ -97,41 +109,37 @@ function UserFormModal({ isOpen, userToEdit, onClose, onSave }) {
     }));
   };
 
-// Usuarios.jsx (Reemplazar la función handleSubmit dentro de UserFormModal)
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setFormError(null);
-    
-    // 🚨 CORRECCIÓN 1: Validar Contraseña en el cliente (solo si no estamos editando)
-    if (!formData.nombre.trim() || 
-        !formData.email.trim() || 
-        !formData.rol.trim() || 
-        (!isEditing && !formData.password.trim()) // <-- ¡ESTA ES LA LÍNEA CLAVE!
+
+    // Validar Contraseña (solo si no estamos editando O si se ha escrito algo)
+    if (!formData.nombre.trim() ||
+      !formData.email.trim() ||
+      !formData.rol.trim() ||
+      !formData.area.trim() ||
+      (!isEditing && !formData.password.trim())
     ) {
-      setFormError('Por favor, completa todos los campos obligatorios.');
+      setFormError('Por favor, completa todos los campos obligatorios (incluyendo el Área y Contraseña en modo creación).');
       return;
     }
 
-    // 🚨 CORRECCIÓN 2: Construcción CLARA y robusta del payload
     const userPayload = {
-        nombre: formData.nombre,
-        email: formData.email,
-        rol: formData.rol,
-        area: formData.area,
-        activo: formData.activo,
+      nombre: formData.nombre,
+      email: formData.email,
+      rol: formData.rol,
+      area: formData.area,
+      activo: formData.activo,
     };
-    
-    // Incluir ID solo si es edición
+
     if (isEditing) {
-        userPayload.id = userToEdit.id;
+      userPayload.id = userToEdit.id;
     }
 
-    // Incluir la contraseña SÓLO si se ha introducido un valor (cubre creación y edición)
     if (formData.password.trim()) {
-        userPayload.password = formData.password;
+      userPayload.password = formData.password;
     }
-    
+
     setIsSaving(true);
     try {
       await onSave(userPayload, isEditing);
@@ -144,8 +152,8 @@ function UserFormModal({ isOpen, userToEdit, onClose, onSave }) {
   };
 
   const ROLES = ["Admin IT", "Ingeniero", "Operador", "Maquinista", "Master"];
-  const AREAS = ['Machine Shop', 'Inyección', 'Extrusión', 'Mantenimiento', 'IT/Sistemas', 'Otros'];
-    return (
+
+  return (
     <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-gray-900/60 p-4">
       <div className="bg-white rounded-2xl shadow-3xl w-full max-w-lg">
         <div className="p-6">
@@ -231,7 +239,7 @@ function UserFormModal({ isOpen, userToEdit, onClose, onSave }) {
               </select>
             </div>
 
-            {/* Área */}
+            {/* Área (Dinámica) */}
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-1">Área/Departamento</label>
               <select
@@ -242,8 +250,27 @@ function UserFormModal({ isOpen, userToEdit, onClose, onSave }) {
                 disabled={isSaving}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2"
               >
-                {AREAS.map(a => <option key={a} value={a}>{a}</option>)}
+                {areas.length === 0 ? (
+                  <option value="">Cargando áreas...</option>
+                ) : (
+                  // ✅ CORRECCIÓN 2: Usamos 'nombreArea' o 'nombre' para obtener el string
+                  areas.map((a, index) => {
+                    const areaName = a.nombreArea || a.nombre || (typeof a === 'string' ? a : '');
+
+                    if (!areaName) return null; // Evitar renderizar opciones si no tienen nombre/nombreArea
+
+                    return (
+                        <option 
+                            key={a.id || areaName || index} 
+                            value={areaName}
+                        >
+                          {areaName}
+                        </option>
+                    );
+                  })
+                )}
               </select>
+              {areas.length === 0 && !isSaving && <p className="text-xs text-red-500 mt-1">No se pudieron cargar las áreas. Revise la consola.</p>}
             </div>
 
             {/* Activo */}
@@ -275,7 +302,11 @@ function UserFormModal({ isOpen, userToEdit, onClose, onSave }) {
                 disabled={isSaving}
                 className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
               >
-                {isEditing ? 'Guardar Cambios' : 'Crear Usuario'}
+                {isSaving ? (
+                  <Loader2 size={18} className="animate-spin" />
+                ) : (
+                  isEditing ? 'Guardar Cambios' : 'Crear Usuario'
+                )}
               </button>
             </div>
           </form>
@@ -284,6 +315,10 @@ function UserFormModal({ isOpen, userToEdit, onClose, onSave }) {
     </div>
   );
 }
+
+// ----------------------------------------------------------------------
+// FILA DE USUARIO (SIN CAMBIOS)
+// ----------------------------------------------------------------------
 function UserTableRow({ user, handleEdit, handleToggleActive, handleDelete }) {
   const statusClasses = user.activo
     ? 'bg-green-100 text-green-700 border-green-200'
@@ -328,20 +363,24 @@ function UserTableRow({ user, handleEdit, handleToggleActive, handleDelete }) {
           >
             {user.activo ? <XCircle size={18} /> : <UserCheck size={18} />}
           </button>
-
-         
         </div>
       </Td>
     </tr>
   );
 }
+
+// ----------------------------------------------------------------------
+// COMPONENTE PRINCIPAL: USUARIOS
+// ----------------------------------------------------------------------
 export default function Usuarios() {
   // Estado
   const [users, setUsers] = useState([]);
+  const [areas, setAreas] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('todos'); // nuevo filtro
+  const [statusFilter, setStatusFilter] = useState('todos');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [areaError, setAreaError] = useState(null); // Nuevo estado para errores de área
 
   // Modales
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -349,11 +388,11 @@ export default function Usuarios() {
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [userToConfirm, setUserToConfirm] = useState(null);
 
-  // 🚨 ESTADOS DE PAGINACIÓN
+  // ESTADOS DE PAGINACIÓN
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10; // Mostrar 10 usuarios por página
+  const itemsPerPage = 10;
 
-  // API: listar
+  // API: listar usuarios
   const fetchUsers = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -370,19 +409,31 @@ export default function Usuarios() {
     }
   }, []);
 
+  // API: listar Áreas
+  const fetchAreas = useCallback(async () => {
+    setAreaError(null);
+    try {
+      const response = await fetch(API_AREAS_URL);
+      if (!response.ok) throw new Error('Error al cargar áreas.');
+      const data = await response.json();
+      setAreas(data);
+    } catch (err) {
+      console.error("Error al obtener áreas:", err);
+      setAreaError("Error al cargar la lista de áreas.");
+    }
+  }, []);
+
   useEffect(() => {
     fetchUsers();
-  }, [fetchUsers]);
+    fetchAreas();
+  }, [fetchUsers, fetchAreas]);
 
   // Guardar (crear/editar)
-// Usuarios.jsx (Reemplazar la función handleSaveUser)
-
-const handleSaveUser = useCallback(async (user, isEditing) => {
+  const handleSaveUser = useCallback(async (user, isEditing) => {
     const method = isEditing ? 'PUT' : 'POST';
     const url = isEditing ? `${API_USUARIOS_URL}/${user.id}` : API_USUARIOS_URL;
 
     const payload = { ...user };
-    // Aseguramos que 'password' no se envíe en PUT si está vacío
     if (isEditing && !payload.password?.trim()) {
       delete payload.password;
     }
@@ -393,36 +444,28 @@ const handleSaveUser = useCallback(async (user, isEditing) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      
-      // 🚨 MANEJO DE ERRORES MEJORADO: Leer el cuerpo del 400 (ModelState)
+
       if (!response.ok) {
         let errorData;
         try {
-            // Intentamos leer el JSON con los errores de C#
-            errorData = await response.json();
+          errorData = await response.json();
         } catch (e) {
-            // Fallback si no es un JSON
-            throw new Error(`Error ${response.status}: La API no devolvió un formato de error legible.`);
+          throw new Error(`Error ${response.status}: La API no devolvió un formato de error legible.`);
         }
 
-        // Si C# devolvió los errores de validación (ModelState.Errors)
         if (errorData.errors) {
-            const validationErrors = Object.values(errorData.errors).flat();
-            // Lanza el primer error de validación para que lo vea el usuario
-            throw new Error(validationErrors[0] || 'Error de validación desconocido.');
+          const validationErrors = Object.values(errorData.errors).flat();
+          throw new Error(validationErrors[0] || 'Error de validación desconocido.');
         }
 
-        // Fallback si el error 400 no tiene el formato esperado
-        throw new Error('Error al guardar usuario. Revise la consola para más detalles.'); 
+        throw new Error('Error al guardar usuario. Revise la consola para más detalles.');
       }
-      
-      // Si la respuesta es OK, recargamos la lista
+
       await fetchUsers();
     } catch (err) {
-      // Este error es capturado y mostrado por el UserFormModal
       throw new Error(err.message || 'No se pudo guardar el usuario.');
     }
-}, [fetchUsers]);
+  }, [fetchUsers]);
 
   // Activar/Inactivar usando PUT
   const confirmAction = useCallback(async (user) => {
@@ -431,33 +474,34 @@ const handleSaveUser = useCallback(async (user, isEditing) => {
     setIsLoading(true);
     setError(null);
 
-const updatedUser = {
-  Id: user.id,
-  Nombre: user.nombre,
-  Email: user.email,
-  Rol: user.rol,
-  Area: user.area,
-  Activo: !user.activo,
-  Contrasena: "" // 👈 importante: evita que el backend truene
-};
+    const updatedUser = {
+      Id: user.id,
+      Nombre: user.nombre,
+      Email: user.email,
+      Rol: user.rol,
+      Area: user.area,
+      Activo: !user.activo,
+      Contrasena: ""
+    };
 
 
     try {
-  const response = await fetch(`${API_USUARIOS_URL}/${user.id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(updatedUser),
-  });
+      const response = await fetch(`${API_USUARIOS_URL}/${user.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedUser),
+      });
 
-  if (!response.ok) throw new Error('Error al cambiar estado.');
-  await fetchUsers();
-} catch (err) {
-  setError(err.message);
-} finally {
-  setIsLoading(false);
-}
+      if (!response.ok) throw new Error('Error al cambiar estado.');
+      await fetchUsers();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
 
   }, [fetchUsers]);
+  
   // Eliminar usuario
   const handleDeleteUser = async (user) => {
     if (!window.confirm(`¿Seguro que quieres eliminar al usuario ${user.nombre}?`)) return;
@@ -467,16 +511,16 @@ const updatedUser = {
         method: 'DELETE',
       });
       if (!response.ok) throw new Error('Error al eliminar usuario.');
-      await fetchUsers(); // recargar lista
+      await fetchUsers();
     } catch (err) {
       setError(err.message);
     }
   };
-  // Filtro combinado
+  
+  // Filtro combinado (SIN CAMBIOS)
   const filteredUsers = useMemo(() => {
-    let result = users.slice(); // Usamos slice para evitar mutaciones directas y facilitar el orden
+    let result = users.slice();
 
-    // Filtro de búsqueda
     if (searchTerm) {
       const lower = searchTerm.toLowerCase();
       result = result.filter(u =>
@@ -487,22 +531,18 @@ const updatedUser = {
       );
     }
 
-    // Filtro de estado
     if (statusFilter === 'activos') {
       result = result.filter(u => u.activo);
     } else if (statusFilter === 'inactivos') {
       result = result.filter(u => !u.activo);
     }
 
-    // Opcional: Ordenar por ID para consistencia (descendente)
     result.sort((a, b) => b.id - a.id);
 
     return result;
   }, [users, searchTerm, statusFilter]);
 
-  // ----------------------------------------------------------------------
-  // 🚨 LÓGICA DE PAGINACIÓN
-  // ----------------------------------------------------------------------
+  // LÓGICA DE PAGINACIÓN (SIN CAMBIOS)
   const totalItems = filteredUsers.length;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -533,7 +573,7 @@ const updatedUser = {
     }
     return pages;
   };
-  
+
   // Handlers de modales (Sin cambios)
   const handleOpenModal = () => {
     setEditingUser(null);
@@ -551,7 +591,8 @@ const updatedUser = {
     setUserToConfirm(user);
     setIsConfirmModalOpen(true);
   };
-    // Render
+
+  // Render
   return (
     <div className="bg-white p-6 rounded-2xl shadow-xl border border-gray-100 min-h-full">
       {/* Encabezado */}
@@ -590,8 +631,8 @@ const updatedUser = {
             placeholder="Buscar por nombre, email, rol o área..."
             value={searchTerm}
             onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setCurrentPage(1); // 🚨 Resetear página
+              setSearchTerm(e.target.value);
+              setCurrentPage(1);
             }}
             className="w-full border border-gray-300 rounded-xl py-2 pl-10 pr-4 focus:ring-indigo-500 focus:border-indigo-500 transition"
           />
@@ -604,8 +645,8 @@ const updatedUser = {
         <select
           value={statusFilter}
           onChange={(e) => {
-              setStatusFilter(e.target.value);
-              setCurrentPage(1); // 🚨 Resetear página
+            setStatusFilter(e.target.value);
+            setCurrentPage(1);
           }}
           className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
         >
@@ -622,10 +663,10 @@ const updatedUser = {
           Cargando usuarios...
         </div>
       )}
-      {error && (
+      {(error || areaError) && (
         <div className="p-4 mb-4 text-red-700 bg-red-100 rounded-lg flex items-center">
           <AlertTriangle size={20} className="mr-2" />
-          Error de Conexión: {error}
+          Error de Conexión: {error || areaError}
         </div>
       )}
 
@@ -645,7 +686,7 @@ const updatedUser = {
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {filteredUsers.length > 0 ? (
-              currentItems.map(user => ( // 🚨 Usamos currentItems para la paginación
+              currentItems.map(user => (
                 <UserTableRow
                   key={user.id}
                   user={user}
@@ -668,61 +709,61 @@ const updatedUser = {
         </table>
       </div>
 
-      {/* 🚨 CONTROLES DE PAGINACIÓN */}
+      {/* CONTROLES DE PAGINACIÓN */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6 rounded-b-xl mt-4 shadow-md border">
           <div className="flex flex-1 justify-between sm:hidden">
-            <button 
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={currentPage === 1}
-                className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            <button
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1}
+              className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
             >
-                <ChevronLeft size={16} className="mr-1" /> Anterior
+              <ChevronLeft size={16} className="mr-1" /> Anterior
             </button>
             <button
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage === totalPages}
-                className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage === totalPages}
+              className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
             >
-                Siguiente <ChevronRight size={16} className="ml-1" />
+              Siguiente <ChevronRight size={16} className="ml-1" />
             </button>
           </div>
           <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
             <div>
               <p className="text-sm text-gray-700">
-                  Mostrando <span className="font-medium">{startIndex + 1}</span> a <span className="font-medium">{Math.min(endIndex, totalItems)}</span> de{' '}
-                  <span className="font-medium">{totalItems}</span> resultados.
+                Mostrando <span className="font-medium">{startIndex + 1}</span> a <span className="font-medium">{Math.min(endIndex, totalItems)}</span> de{' '}
+                <span className="font-medium">{totalItems}</span> resultados.
               </p>
             </div>
             <div>
               <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
                 <button
-                    onClick={() => handlePageChange(currentPage - 1)}
-                    disabled={currentPage === 1}
-                    className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
                 >
-                    <ChevronLeft size={16} />
+                  <ChevronLeft size={16} />
                 </button>
-                
+
                 {getPageNumbers().map(page => (
-                    <button
-                        key={page}
-                        onClick={() => handlePageChange(page)}
-                        aria-current={currentPage === page ? 'page' : undefined}
-                        className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold focus:z-20 ${currentPage === page 
-                            ? 'z-10 bg-indigo-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600'
-                            : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50'}`}
-                    >
-                        {page}
-                    </button>
+                  <button
+                    key={page}
+                    onClick={() => handlePageChange(page)}
+                    aria-current={currentPage === page ? 'page' : undefined}
+                    className={`relative inline-flex items-center px-4 py-2 text-sm font-semibold focus:z-20 ${currentPage === page
+                      ? 'z-10 bg-indigo-600 text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600'
+                      : 'text-gray-900 ring-1 ring-inset ring-gray-300 hover:bg-gray-50'}`}
+                  >
+                    {page}
+                  </button>
                 ))}
 
                 <button
-                    onClick={() => handlePageChange(currentPage + 1)}
-                    disabled={currentPage === totalPages}
-                    className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0 disabled:opacity-50"
                 >
-                    <ChevronRight size={16} />
+                  <ChevronRight size={16} />
                 </button>
               </nav>
             </div>
@@ -744,6 +785,7 @@ const updatedUser = {
         userToEdit={editingUser}
         onClose={handleCloseModal}
         onSave={handleSaveUser}
+        areas={areas}
       />
 
       {userToConfirm && (
