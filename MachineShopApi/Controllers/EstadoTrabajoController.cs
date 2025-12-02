@@ -56,96 +56,110 @@ namespace MachineShopApi.Controllers
         [HttpPost]
         public async Task<ActionResult<EstadoTrabajo>> PostEstadoTrabajo([FromBody] EstadoTrabajoCreationDto estadoDto)
         {
-            // 1. Obtener la Solicitud y validaciones básicas
+            // 1. Obtener la Solicitud (CRÍTICO: Incluir la Revisión para poder actualizar la prioridad)
             var solicitud = await _context.Solicitudes
                 .Include(s => s.Revision)
                 .FirstOrDefaultAsync(s => s.Id == estadoDto.IdSolicitud);
 
+            // Validaciones
             if (solicitud == null || !await _context.Usuarios.AnyAsync(u => u.Id == estadoDto.IdMaquinista))
             {
                 return BadRequest("El ID de Solicitud o Maquinista proporcionado no es válido.");
             }
 
+            if (solicitud.Revision == null)
+            {
+                return StatusCode(500, "Error: No se encontró la revisión asociada a la solicitud.");
+            }
+
             // =================================================
             // 2. LÓGICA DE CIERRE DE OPERACIÓN PREVIA
-            // Se calcula el tiempo trabajado en el segmento anterior (si estaba en progreso)
             // =================================================
             var ultimaOperacionAbierta = await _context.EstadoTrabajo
                 .Where(e => e.IdSolicitud == estadoDto.IdSolicitud && e.FechaYHoraDeFin == null)
                 .OrderByDescending(e => e.FechaYHoraDeInicio)
                 .FirstOrDefaultAsync();
 
+            var now = DateTime.Now; // 👈 Capturamos la marca de tiempo una sola vez
+
             if (ultimaOperacionAbierta != null)
             {
-                ultimaOperacionAbierta.FechaYHoraDeFin = DateTime.Now;
-                TimeSpan duracion = ultimaOperacionAbierta.FechaYHoraDeFin.Value - ultimaOperacionAbierta.FechaYHoraDeInicio;
-                ultimaOperacionAbierta.TiempoMaquina = (decimal)duracion.TotalHours;
+                ultimaOperacionAbierta.FechaYHoraDeFin = now; // Se cierra el log
+
+                // 🚨 MODIFICACIÓN CLAVE: Si es el log de asignación inicial, el tiempo es 0.
+                if (ultimaOperacionAbierta.DescripcionOperacion.StartsWith("Asignación inicial:"))
+                {
+                    ultimaOperacionAbierta.TiempoMaquina = 0.00m; // <-- Forzamos el tiempo a cero
+                }
+                else
+                {
+                    // Calcular la duración normal si es un log de trabajo real (ej. de "INICIO")
+                    TimeSpan duracion = ultimaOperacionAbierta.FechaYHoraDeFin.Value - ultimaOperacionAbierta.FechaYHoraDeInicio;
+                    ultimaOperacionAbierta.TiempoMaquina = (decimal)duracion.TotalHours;
+                }
                 _context.Entry(ultimaOperacionAbierta).State = EntityState.Modified;
             }
 
             // =================================================
-            // 3. CONTROL DE FLUJO
+            // 3. CREACIÓN DEL NUEVO REGISTRO Y CONTROL DE FLUJO
             // =================================================
 
-            // 💡 FLUJO A: FINALIZAR EL TRABAJO
+            DateTime? fechaFinLog = null;
+            decimal tiempoMaquinaLog = 0.00m;
+
+            // 💡 Flujo de Finalización: Prioridad == "Completado"
             if (estadoDto.Prioridad == "Completado")
             {
-                // 3a. Validar si la Revisión existe para poder actualizar la Prioridad.
-                if (solicitud.Revision == null)
-                {
-                    return StatusCode(500, "Error: No se encontró la revisión asociada para actualizar la prioridad.");
-                }
+                // Este registro se cierra inmediatamente y usa el tiempo enviado desde el frontend
+                fechaFinLog = now; // Usamos el tiempo capturado
+                tiempoMaquinaLog = estadoDto.TiempoMaquina;
 
-                // 3b. Actualizar la Prioridad de la Revisión (Esto mueve el estado en los filtros)
+                // CRÍTICO: Actualizar el estado de la Revisión
                 solicitud.Revision.Prioridad = "Completado";
+                solicitud.Revision.FechaHoraRevision = now; // Usamos el tiempo capturado
 
-                // 3c. Opcional: Almacenar los Tiempos Registrados (si el modelo Solicitud no lo permite, 
-                // se puede almacenar en la tabla de Observaciones o en un campo de la Solicitud).
-                // Si la Solicitud no tiene un campo para tiempos, puedes guardarlo en las Observaciones
-                // de la última operación o en un nuevo registro de EstadoTrabajo.
+                _context.Entry(solicitud.Revision).State = EntityState.Modified;
 
-                // Opción simple: Si queremos guardar el JSON de tiempos en la última operación cerrada:
-                if (ultimaOperacionAbierta != null)
-                {
-                    ultimaOperacionAbierta.Observaciones =
-                        (ultimaOperacionAbierta.Observaciones ?? string.Empty)
-                        + "\n--- Tiempos Finales ---\n"
-                        + estadoDto.TiemposRegistradosJson;
-                    ultimaOperacionAbierta.Observaciones = estadoDto.Observaciones; // Sobreescribe con las observaciones finales
-
-                    _context.Entry(ultimaOperacionAbierta).State = EntityState.Modified;
-                }
-
-                // 3d. Guardar cambios (Cierre de última operación y cambio de prioridad)
-                await _context.SaveChangesAsync();
-
-                return NoContent(); // Respuesta 204 para indicar éxito sin contenido de retorno
             }
-
-            // 💡 FLUJO B: INICIO o PAUSA (Cualquier otra acción que no sea "Completado")
-            else
+            // 💡 Flujo de Pausa: Prioridad == "Pausada"
+            else if (estadoDto.Prioridad == "Pausada")
             {
-                // 3e. Crear un nuevo registro de estado (INICIO o PAUSA)
-                var nuevoEstadoTrabajo = new EstadoTrabajo
-                {
-                    IdSolicitud = estadoDto.IdSolicitud,
-                    IdMaquinista = estadoDto.IdMaquinista,
-                    // Se usa la máquina asignada de la Solicitud, o del DTO si se manda.
-                    MaquinaAsignada = estadoDto.MaquinaAsignada ?? solicitud.Pieza.Maquina,
-                    DescripcionOperacion = estadoDto.DescripcionOperacion,
-                    Observaciones = estadoDto.Observaciones,
-                    FechaYHoraDeInicio = DateTime.Now,
-                    FechaYHoraDeFin = null, // Se deja abierto
-                    TiempoMaquina = 0.00m,
-                };
-
-                _context.EstadoTrabajo.Add(nuevoEstadoTrabajo);
-
-                // 3f. Guardar cambios (Cierre de operación previa y creación de la nueva)
-                await _context.SaveChangesAsync();
-
-                return CreatedAtAction(nameof(GetHistorialSolicitud), new { idSolicitud = nuevoEstadoTrabajo.IdSolicitud }, nuevoEstadoTrabajo);
+                fechaFinLog = now; // Usamos el tiempo capturado
+                tiempoMaquinaLog = 0.00m;
             }
+            // Flujo de Inicio/Reanudación (Prioridad == "En progreso") usa los valores por defecto.
+
+
+            // 3b. Crear el nuevo registro de EstadoTrabajo
+            var nuevoEstadoTrabajo = new EstadoTrabajo
+            {
+                IdSolicitud = estadoDto.IdSolicitud,
+                IdMaquinista = estadoDto.IdMaquinista,
+
+                // Usamos los campos del DTO
+                MaquinaAsignada = estadoDto.MaquinaAsignada,
+                DescripcionOperacion = estadoDto.DescripcionOperacion,
+                Observaciones = estadoDto.Observaciones,
+
+                FechaYHoraDeInicio = now, // Usamos el tiempo capturado
+                FechaYHoraDeFin = fechaFinLog,
+                TiempoMaquina = tiempoMaquinaLog,
+            };
+
+            _context.EstadoTrabajo.Add(nuevoEstadoTrabajo);
+
+            // 4. Guardar todos los cambios
+            try
+            {
+                await _context.SaveChangesAsync();
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                throw;
+            }
+
+            // 5. Respuesta (simplificada a 204 No Content para mayor robustez)
+            return NoContent();
         }
 
 

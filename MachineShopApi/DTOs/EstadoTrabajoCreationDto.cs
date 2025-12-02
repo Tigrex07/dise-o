@@ -1,28 +1,21 @@
-using System;
+Ôªøusing System;
 using System.ComponentModel.DataAnnotations;
 
 namespace MachineShopApi.DTOs
 {
-    // DTO usado para registrar el INICIO de un nuevo estado de trabajo (POST)
     public class EstadoTrabajoCreationDto
     {
-        [Required(ErrorMessage = "El ID de la solicitud es obligatorio.")]
+        // Campos que ya exist√≠an
         public int IdSolicitud { get; set; }
-
-        [Required(ErrorMessage = "El ID del maquinista es obligatorio.")]
         public int IdMaquinista { get; set; }
-
-        public string Prioridad { get; set; }
-        public string? TiemposRegistradosJson { get; set; }
-
-        [Required(ErrorMessage = "La m·quina asignada es obligatoria.")]
-        [MaxLength(50)]
-        public string MaquinaAsignada { get; set; } = string.Empty;
-
-        [Required(ErrorMessage = "La descripciÛn de la operaciÛn es obligatoria.")]
-        [MaxLength(100)]
-        public string DescripcionOperacion { get; set; } = string.Empty;
-
+        public string DescripcionOperacion { get; set; }
         public string? Observaciones { get; set; }
+
+        // Campo de control de flujo
+        public string Prioridad { get; set; } // Lo necesitamos para el control de flujo (En progreso, Pausada, Completado)
+
+        // ‚úÖ CAMPOS NUEVOS/CR√çTICOS
+        public string MaquinaAsignada { get; set; }
+        public decimal TiempoMaquina { get; set; }
     }
 }

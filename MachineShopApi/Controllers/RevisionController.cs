@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System;
+using System.Security.Claims;
 
 namespace MachineShopApi.Controllers
 {
@@ -206,10 +207,20 @@ namespace MachineShopApi.Controllers
                 }
             }
 
+            int idMaquinista;
+            var userIdClaim = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+            if (!int.TryParse(userIdClaim, out idMaquinista))
+            {
+                // Manejar el error si el ID no se encuentra o no es válido (ej: devolver 401 Unauthorized)
+                return Unauthorized("Token de usuario inválido o ausente.");
+            }
+
             // 3. Opcional: Registrar el cambio en EstadoTrabajo (para historial)
             var nuevoEstado = new EstadoTrabajo
             {
                 IdSolicitud = idSolicitud,
+                IdMaquinista = idMaquinista, // <-- Usar el ID extraído
                 // Opcional: Si quieres registrar qué usuario hizo el cambio (necesitas IdUsuario en el DTO o Token)
                 // IdMaquinista = 1, 
                 DescripcionOperacion = $"Prioridad de Revisión cambiada de '{prioridadAnterior}' a '{revision.Prioridad}'",
