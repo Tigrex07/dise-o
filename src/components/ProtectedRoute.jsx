@@ -5,12 +5,17 @@ import { useAuth } from "../context/AuthContext"; // 👈 ajusta la ruta según 
 export default function ProtectedRoute({ children, allowedRoles }) {
   const { user, isAuthenticated } = useAuth();
 
-  // 🔑 En fase de pruebas: si no hay sesión, deja pasar
+  // 🚨 Si no hay sesión, redirige al login
   if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // 🚨 Master tiene acceso total
+  if (user.rol === "Master") {
     return children;
   }
 
-  // Si hay sesión, sí aplica roles
+  // 🚨 Validación por rol
   if (!allowedRoles.includes(user.rol)) {
     return (
       <div className="p-8 text-center text-red-600 font-semibold text-lg">
