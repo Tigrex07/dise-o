@@ -50,7 +50,7 @@ const router = createBrowserRouter([
       {
   path: "trabajo/:id",
   element: (
-    <ProtectedRoute allowedRoles={["Admin IT", "Ingeniero", "Supervisor", "Operador", "Maquinista"]}>
+    <ProtectedRoute allowedRoles={["Admin IT", "Supervisor", "Operador", "Maquinista"]}>
       <TrabajoDetail />
     </ProtectedRoute>
   ),
@@ -58,7 +58,7 @@ const router = createBrowserRouter([
       {
         path: "revision-calidad/:id",
         element: (
-          <ProtectedRoute allowedRoles={["Admin IT", "Ingeniero", "Supervisor"]}>
+          <ProtectedRoute allowedRoles={["Admin IT", "Supervisor"]}>
             <CalidadReview />
           </ProtectedRoute>
         ),
@@ -66,7 +66,7 @@ const router = createBrowserRouter([
       {
         path: "reportes",
         element: (
-          <ProtectedRoute allowedRoles={["Admin IT", "Ingeniero", "Supervisor"]}>
+          <ProtectedRoute allowedRoles={["Admin IT", "Supervisor"]}>
             <Reportes />
           </ProtectedRoute>
         ),
@@ -90,7 +90,7 @@ const router = createBrowserRouter([
       {
         path: "revision",
         element: (
-          <ProtectedRoute allowedRoles={["Admin IT", "Ingeniero", "Supervisor"]}>
+          <ProtectedRoute allowedRoles={["Admin IT", "Supervisor"]}>
             <Revision />
           </ProtectedRoute>
         ),

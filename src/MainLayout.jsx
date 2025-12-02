@@ -1,5 +1,5 @@
 import React from 'react';
-import { Outlet, useLocation, Link } from 'react-router-dom';
+import { Outlet, useLocation, Link, useNavigate } from 'react-router-dom'; // 👈 importa useNavigate
 import { useAuth } from './context/AuthContext';
 import {
   Home, AlertTriangle, Settings, Users, Factory, Tally5,
@@ -24,35 +24,85 @@ function SidebarItem({ icon, label, to, currentPath }) {
 export default function MainLayout() {
   const location = useLocation();
   const { user, isAuthenticated, logout } = useAuth();
+  const navigate = useNavigate(); // 👈 hook de navegación
+
+  const handleLogout = () => {
+    logout();          // limpia sesión
+    navigate("/login"); // 👈 redirige al login
+  };
+
+  // 🔑 Menú dinámico por rol
+  const menuByRole = {
+    "Ingeniero": [
+      { icon: <Home size={18} />, label: "Dashboard", to: "/" },
+      { icon: <Factory size={18} />, label: "Nueva Solicitud", to: "/solicitar" },
+    ],
+    "Operador": [
+      { icon: <Home size={18} />, label: "Dashboard", to: "/" },
+      { icon: <Tally5 size={18} />, label: "Mi Trabajo", to: "/trabajo/mis-asignaciones" },
+    ],
+    "Maquinista": [
+      { icon: <Home size={18} />, label: "Dashboard", to: "/" },
+      { icon: <Tally5 size={18} />, label: "Mi Trabajo", to: "/trabajo/mis-asignaciones" },
+    ],
+    "Supervisor": [
+      { icon: <Home size={18} />, label: "Dashboard", to: "/" },
+      { icon: <UserCheck size={18} />, label: "Revisión", to: "/revision" },
+      { icon: <AlertTriangle size={18} />, label: "Reportes", to: "/reportes" },
+    ],
+    "Admin IT": [
+      { icon: <Home size={18} />, label: "Dashboard", to: "/" },
+      { icon: <Factory size={18} />, label: "Nueva Solicitud", to: "/solicitar" },
+      { icon: <Tally5 size={18} />, label: "Mi Trabajo", to: "/trabajo/mis-asignaciones" },
+      { icon: <UserCheck size={18} />, label: "Revisión", to: "/revision" },
+      { icon: <AlertTriangle size={18} />, label: "Reportes", to: "/reportes" },
+      { icon: <Users size={18} />, label: "Usuarios", to: "/usuarios" },
+      { icon: <Settings size={18} />, label: "Configuración", to: "/configuracion" },
+    ],
+    "Master": [
+      // 👑 Master ve todo igual que Admin IT
+      { icon: <Home size={18} />, label: "Dashboard", to: "/" },
+      { icon: <Factory size={18} />, label: "Nueva Solicitud", to: "/solicitar" },
+      { icon: <Tally5 size={18} />, label: "Mi Trabajo", to: "/trabajo/mis-asignaciones" },
+      { icon: <UserCheck size={18} />, label: "Revisión", to: "/revision" },
+      { icon: <AlertTriangle size={18} />, label: "Reportes", to: "/reportes" },
+      { icon: <Users size={18} />, label: "Usuarios", to: "/usuarios" },
+      { icon: <Settings size={18} />, label: "Configuración", to: "/configuracion" },
+    ],
+  };
+
+  const roleMenus = user?.rol ? menuByRole[user.rol] || [] : [];
 
   return (
     <div className="flex h-screen bg-gray-100 text-gray-800">
-      {/* Sidebar siempre visible */}
+      {/* Sidebar */}
       <aside className="w-64 bg-gray-900 text-white flex flex-col">
         <div className="p-4 text-2xl font-bold text-center border-b border-gray-700">
           Molds Tracker
         </div>
-       <nav className="flex-1 p-4 space-y-2">
-  <SidebarItem icon={<Home size={18} />} label="Dashboard" to="/" currentPath={location.pathname} />
-  <SidebarItem icon={<Factory size={18} />} label="Nueva Solicitud" to="/solicitar" currentPath={location.pathname} />
-  <SidebarItem icon={<Tally5 size={18} />} label="Mi Trabajo" to="/trabajo/mis-asignaciones" currentPath={location.pathname} />
-  <SidebarItem icon={<UserCheck size={18} />} label="Revisión" to="/revision" currentPath={location.pathname} />
-  <SidebarItem icon={<AlertTriangle size={18} />} label="Reportes" to="/reportes" currentPath={location.pathname} />
-  <SidebarItem icon={<Users size={18} />} label="Usuarios" to="/usuarios" currentPath={location.pathname} />
-  <SidebarItem icon={<Settings size={18} />} label="Configuración" to="/configuracion" currentPath={location.pathname} />
+        <nav className="flex-1 p-4 space-y-2">
+          {roleMenus.map(item => (
+            <SidebarItem
+              key={item.to}
+              icon={item.icon}
+              label={item.label}
+              to={item.to}
+              currentPath={location.pathname}
+            />
+          ))}
 
-  {/* 🔑 Mostrar login solo si NO hay sesión */}
-  {!isAuthenticated && (
-    <SidebarItem
-      icon={<UserCircle size={18} />}
-      label="Iniciar Sesión"
-      to="/login"
-      currentPath={location.pathname}
-    />
-  )}
-</nav>
+          {/* 🔑 Mostrar login solo si NO hay sesión */}
+          {!isAuthenticated && (
+            <SidebarItem
+              icon={<UserCircle size={18} />}
+              label="Iniciar Sesión"
+              to="/login"
+              currentPath={location.pathname}
+            />
+          )}
+        </nav>
 
-        {/* Info de usuario y logout solo si hay sesión */}
+        {/* Info de usuario y logout */}
         {isAuthenticated && (
           <div className="p-4 border-t border-gray-700 bg-gray-800">
             <div className="flex items-center space-x-3 mb-3 p-2 rounded-lg bg-gray-700/50">
@@ -65,7 +115,7 @@ export default function MainLayout() {
               </div>
             </div>
             <button
-              onClick={logout}
+              onClick={handleLogout} // 👈 usa la nueva función
               className="w-full flex items-center justify-center p-3 rounded-xl transition duration-150 bg-indigo-600 hover:bg-indigo-700 text-white font-medium shadow-md"
               title="Cerrar sesión"
             >
